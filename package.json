@@ -1,0 +1,39 @@
+{
+  "name": "x-electron",
+  "version": "0.1.0",
+  "description": "Cliente de escritorio multi-columna para X.com",
+  "main": "src/main/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder --win portable",
+    "pack": "electron-builder --dir"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.dna.xelectron",
+    "productName": "X-Electron",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "config/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "X-Electron.exe"
+    }
+  }
+}

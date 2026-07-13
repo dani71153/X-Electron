@@ -1,0 +1,2 @@
+sesion iniciada: false
+SIN SESION

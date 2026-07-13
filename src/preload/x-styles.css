@@ -1,0 +1,19 @@
+/* CSS que inyectamos DENTRO de x.com.
+   De momento solo retoques suaves. Los selectores de X son clases generadas,
+   asi que nos apoyamos en atributos data-testid, que son mas estables. */
+
+/* Oculta la columna derecha de "Qué está pasando" y "A quién seguir". */
+[data-testid="sidebarColumn"] {
+  display: none !important;
+}
+
+/* Aprovecha el ancho que deja libre la columna oculta. */
+[data-testid="primaryColumn"] {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* Quita el boton flotante de "Suscribirse a Premium". */
+[data-testid="super-upsell-UpsellCardRedesign"] {
+  display: none !important;
+}

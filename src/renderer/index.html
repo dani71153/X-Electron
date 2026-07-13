@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Sin conexiones externas salvo las imagenes de X (avatares y media). -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://pbs.twimg.com https://abs.twimg.com data:;"
+    />
+    <title>X-Electron</title>
+    <link rel="stylesheet" href="styles/base.css" />
+  </head>
+  <body>
+    <header class="barra">
+      <h1>X-Electron</h1>
+      <div class="barra-acciones">
+        <button id="btn-anadir">+ Columna</button>
+        <button id="btn-refrescar">Refrescar</button>
+        <button id="btn-abrir-x">Abrir X.com</button>
+        <!-- Siempre visible: cuando X invalida la sesion, las cookies viejas se
+             quedan y la app cree que sigue habiendo sesion, asi que el aviso de
+             abajo no aparece. Si el boton viviera solo ahi, no se veria justo
+             cuando hace falta. -->
+        <button id="btn-limpiar-sesion" title="Borra las cookies de X y abre el login de cero">
+          Limpiar sesión de X
+        </button>
+      </div>
+    </header>
+
+    <div id="aviso-sesion" class="aviso" hidden>
+      No has iniciado sesión en X. Las columnas no se llenarán hasta que entres.
+      <button id="btn-entrar">Iniciar sesión</button>
+    </div>
+
+    <main id="tablero" class="tablero"></main>
+
+    <dialog id="dialogo-columna">
+      <form id="form-columna" method="dialog">
+        <h2>Nueva columna</h2>
+
+        <label>
+          Título
+          <input id="campo-titulo" type="text" required placeholder="Noticias de IA" />
+        </label>
+
+        <label>
+          Tipo
+          <select id="campo-tipo">
+            <option value="home">Inicio</option>
+            <option value="list">Lista</option>
+            <option value="user">Perfil</option>
+            <option value="search">Búsqueda</option>
+            <option value="notifications">Notificaciones</option>
+            <option value="saved">Guardados (local)</option>
+          </select>
+          <small id="aviso-tipo" hidden>
+            Ojo: cosechar Notificaciones hace que X las marque como leídas.
+          </small>
+        </label>
+
+        <div id="lista-selector" hidden>
+          <div class="lista-cabecera">
+            <span>Tus listas (un click para crear la columna)</span>
+            <button type="button" id="btn-actualizar-listas">Actualizar</button>
+          </div>
+          <div id="lista-botones"></div>
+          <p id="lista-vacia" class="lista-vacia" hidden>
+            No hay listas capturadas todavía. Pulsa "Actualizar" (abre tus listas en segundo plano).
+          </p>
+        </div>
+
+        <label>
+          Fuente
+          <input id="campo-fuente" type="text" />
+          <small id="pista-fuente"></small>
+        </label>
+
+        <label id="campo-orden-wrap" hidden>
+          Orden
+          <select id="campo-orden">
+            <option value="live">Más recientes</option>
+            <option value="top">Destacados</option>
+            <option value="user">Personas</option>
+            <option value="media">Multimedia</option>
+          </select>
+        </label>
+
+        <label class="checkbox">
+          <input id="campo-vivo" type="checkbox" />
+          Mostrar en vivo (webview de X)
+          <small>En vez de cosechar datos, embebe x.com en directo. Útil para vigilar varios a la vez. Consume más memoria.</small>
+        </label>
+
+        <p id="error-columna" class="error" hidden></p>
+
+        <div class="dialogo-acciones">
+          <button type="button" id="btn-cancelar">Cancelar</button>
+          <button type="submit">Crear</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>

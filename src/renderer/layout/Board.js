@@ -1,6 +1,7 @@
 // El tablero: contiene las columnas y las mantiene sincronizadas con main.
 
 import { Columna } from './Column.js';
+import { ArrastreDeColumnas } from './arrastre.js';
 
 export class Tablero {
   /**
@@ -13,8 +14,21 @@ export class Tablero {
     // columnaId -> instancia de Columna
     this.columnas = new Map();
 
+    // Ids en el orden en que se ven, de izquierda a derecha. Es la fuente de
+    // verdad del orden: el DOM NO se reordena nunca (ver arrastre.js).
+    this.orden = [];
+
     // Id de la columna en vivo "principal": donde se abren los tweets.
     this.principalId = null;
+
+    this.arrastre = new ArrastreDeColumnas(contenedor, {
+      obtenerOrden: () => this.orden,
+      elementoDe: (id) => this.columnas.get(id).elemento,
+      // Mientras arrastras: repinta el orden, pero no toca la base de datos.
+      alReordenar: (ids) => this.aplicarOrden(ids),
+      // Al soltar: ya es definitivo, lo guardamos.
+      alSoltar: (ids) => this.guardarOrden(ids),
+    });
 
     // Acciones que comparten todos los tweets de todas las columnas.
     this.acciones = {
@@ -40,9 +54,13 @@ export class Tablero {
     if (this.recargar) await this.recargar();
   }
 
-  /** Las columnas en vivo, en orden de aparición. */
+  /** Las columnas en vivo, de izquierda a derecha tal y como se ven. */
   columnasEnVivo() {
-    return [...this.columnas.values()].filter((c) => c.vivo);
+    // Se recorre `orden` y no el Map: desde que se pueden reordenar, el orden de
+    // insercion en el Map ya no es el orden en que se ven.
+    return this.orden
+      .map((id) => this.columnas.get(id))
+      .filter((columna) => columna && columna.vivo);
   }
 
   /** Fija (o revalida) cuál es la columna principal y actualiza el marcado. */
@@ -68,6 +86,43 @@ export class Tablero {
     }
   }
 
+  /**
+   * Pinta el orden dado: a cada columna le pone su `order` de flexbox.
+   *
+   * Reordenar asi, y no moviendo nodos, es lo que permite reordenar columnas EN
+   * VIVO sin que su <webview> se recargue (ver arrastre.js).
+   *
+   * @param {number[]} ids
+   */
+  aplicarOrden(ids) {
+    this.orden = ids;
+
+    ids.forEach((id, indice) => {
+      const columna = this.columnas.get(id);
+      if (columna) columna.elemento.style.order = indice;
+    });
+  }
+
+  /**
+   * Aplica el ajuste de auto-clic a todas las columnas en vivo.
+   * Se guarda para que las columnas que se creen después nazcan ya con el valor.
+   *
+   * @param {boolean} activo
+   */
+  setAutoMostrarPosts(activo) {
+    this.autoMostrarPosts = activo;
+
+    for (const columna of this.columnasEnVivo()) {
+      columna.enviarAutoMostrarPosts(activo);
+    }
+  }
+
+  /** Guarda el orden en la base de datos. No reconfigura la cosecha: es solo visual. */
+  async guardarOrden(ids) {
+    this.aplicarOrden(ids);
+    await window.api.reordenarColumnas(ids);
+  }
+
   /** Reconstruye el tablero a partir de la lista de columnas de la base de datos. */
   async sincronizar(columnas) {
     const idsActuales = new Set(columnas.map((c) => c.id));
@@ -80,15 +135,22 @@ export class Tablero {
       }
     }
 
-    // Añade las nuevas, en orden.
+    // Añade las nuevas. Al DOM se añaden al final y ahi se quedan para siempre:
+    // el orden que se ve lo decide `order`, mas abajo.
     for (const datos of columnas) {
       if (this.columnas.has(datos.id)) continue;
 
       const columna = new Columna(datos, (id) => this.borrar(id), this.acciones);
       this.columnas.set(datos.id, columna);
       this.contenedor.appendChild(columna.elemento);
+      this.arrastre.conectar(datos.id, columna.cabecera);
+      // Una columna en vivo recién creada tiene que nacer con el ajuste puesto.
+      columna.enviarAutoMostrarPosts(this.autoMostrarPosts === true);
       await columna.refrescar();
     }
+
+    // `columnas` ya viene ordenada por posicion desde la base de datos.
+    this.aplicarOrden(columnas.map((c) => c.id));
 
     // Reaplica cuál es la principal (por defecto, la primera en vivo).
     this.fijarPrincipal(this.principalId);
@@ -125,6 +187,9 @@ export class Tablero {
       columna.destruir();
       this.columnas.delete(columnaId);
     }
+    // Fuera del orden tambien, o al arrastrar buscariamos una columna que ya no esta.
+    this.aplicarOrden(this.orden.filter((id) => id !== columnaId));
+
     // Si borramos la principal, reasignamos a la siguiente columna en vivo.
     if (columnaId === this.principalId) this.fijarPrincipal(null);
   }

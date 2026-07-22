@@ -188,6 +188,54 @@ function borrarColumna(columnaId) {
   db.prepare('DELETE FROM columns WHERE id = ?').run(entero(columnaId));
 }
 
+/**
+ * Guarda el orden de las columnas. Recibe los ids ya ordenados: la posicion de
+ * cada columna pasa a ser su indice en el array.
+ *
+ * Va en una transaccion para que no quede a medias: si fallara a mitad, tendriamos
+ * dos columnas con la misma posicion y el orden saldria aleatorio.
+ *
+ * @param {number[]} idsEnOrden
+ */
+function reordenarColumnas(idsEnOrden) {
+  const db = obtenerBaseDeDatos();
+  const actualizar = db.prepare('UPDATE columns SET position = ? WHERE id = ?');
+
+  db.exec('BEGIN');
+  try {
+    idsEnOrden.forEach((id, indice) => {
+      actualizar.run(entero(indice), entero(id));
+    });
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+// ---------- Ajustes ----------
+
+/** Todos los ajustes guardados, como objeto clave -> texto. */
+function leerAjustes() {
+  const db = obtenerBaseDeDatos();
+  const filas = db.prepare('SELECT key, value FROM settings').all();
+
+  const ajustes = {};
+  for (const fila of filas) ajustes[fila.key] = fila.value;
+  return ajustes;
+}
+
+/** Guarda un ajuste. En la tabla todo se guarda como texto. */
+function guardarAjuste(clave, valor) {
+  const db = obtenerBaseDeDatos();
+  db.prepare(`
+    INSERT INTO settings (key, value) VALUES (?, ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run(texto(clave), texto(valor));
+}
+
+// ---------- Columnas ----------
+
 function contarColumnas() {
   const db = obtenerBaseDeDatos();
   return db.prepare('SELECT COUNT(*) AS n FROM columns').get().n;
@@ -242,7 +290,10 @@ module.exports = {
   listarColumnas,
   crearColumna,
   borrarColumna,
+  reordenarColumnas,
   contarColumnas,
+  leerAjustes,
+  guardarAjuste,
   guardarLista,
   listarListas,
 };

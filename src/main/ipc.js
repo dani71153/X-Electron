@@ -18,6 +18,22 @@ function conUrl(columnas) {
 }
 
 /**
+ * Los ajustes del usuario, ya con los valores por defecto puestos y con los tipos
+ * correctos: en la tabla `settings` todo se guarda como texto.
+ */
+function ajustesDeUsuario() {
+  const guardados = consultas.leerAjustes();
+  const porDefecto = AJUSTES.AJUSTES_POR_DEFECTO;
+
+  return {
+    autoMostrarPostsNuevos:
+      guardados.autoMostrarPostsNuevos === undefined
+        ? porDefecto.autoMostrarPostsNuevos
+        : guardados.autoMostrarPostsNuevos === '1',
+  };
+}
+
+/**
  * @param {() => void} alCambiarColumnas Se llama cuando hay que reconfigurar los cosechadores
  */
 function registrarIpc(alCambiarColumnas) {
@@ -40,6 +56,16 @@ function registrarIpc(alCambiarColumnas) {
   ipcMain.handle(CANALES.COLUMNAS_BORRAR, async (_evento, columnaId) => {
     consultas.borrarColumna(columnaId);
     await alCambiarColumnas();
+  });
+
+  // Reordenar es SOLO visual: cambia el orden en que se pintan las columnas.
+  //
+  // OJO: aqui NO se llama a alCambiarColumnas() a proposito. Reconfigurar la
+  // cosecha destruiria las ventanas de los cosechadores y volveria a cargar las
+  // paginas de X (una carga en frio dispara una rafaga de peticiones). Mover una
+  // columna de sitio no cambia QUE se cosecha, asi que la cosecha ni se entera.
+  ipcMain.handle(CANALES.COLUMNAS_REORDENAR, (_evento, idsEnOrden) => {
+    consultas.reordenarColumnas(idsEnOrden);
   });
 
   ipcMain.handle(CANALES.TWEETS_DE_COLUMNA, (_evento, columnaId) => {
@@ -74,6 +100,17 @@ function registrarIpc(alCambiarColumnas) {
     }
     fs.writeFileSync(filePath, contenido, 'utf8');
     return { ok: true, ruta: filePath };
+  });
+
+  ipcMain.handle(CANALES.AJUSTES_LEER, () => ajustesDeUsuario());
+
+  ipcMain.handle(CANALES.AJUSTES_GUARDAR, (_evento, ajustes) => {
+    // Se comprueba el tipo a proposito: solo guardamos lo que reconocemos, para
+    // que un error del renderer no meta basura en la tabla.
+    if (typeof ajustes.autoMostrarPostsNuevos === 'boolean') {
+      consultas.guardarAjuste('autoMostrarPostsNuevos', ajustes.autoMostrarPostsNuevos ? '1' : '0');
+    }
+    return ajustesDeUsuario();
   });
 
   ipcMain.handle(CANALES.ESTADO_APP, async () => {

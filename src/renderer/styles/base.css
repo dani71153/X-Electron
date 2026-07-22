@@ -50,6 +50,24 @@ body {
   gap: 8px;
 }
 
+/* El engranaje: mismo tamaño que el resto pero sin fondo, para que no compita
+   con las acciones de verdad de la barra. */
+#btn-opciones {
+  background: transparent;
+  border: 1px solid var(--borde);
+  font-size: 15px;
+  line-height: 1;
+}
+
+#btn-opciones:hover {
+  background: var(--fondo-cabecera);
+}
+
+/* El modal de opciones respira mejor un poco más ancho que el de columnas. */
+#dialogo-opciones {
+  max-width: 460px;
+}
+
 button {
   background: var(--acento);
   color: white;
@@ -119,6 +137,41 @@ button:hover {
   background: var(--fondo-cabecera);
   border-bottom: 1px solid var(--borde);
   flex-shrink: 0;
+  /* Toda la cabecera es el asa para arrastrar y reordenar la columna. */
+  cursor: grab;
+}
+
+/* --- Arrastrar columnas para reordenarlas --- */
+
+.columna-asa {
+  color: var(--texto-suave);
+  font-size: 15px;
+  line-height: 1;
+  user-select: none;
+}
+
+/* La columna que llevas cogida. */
+.columna--arrastrando {
+  opacity: 0.55;
+  outline: 2px dashed var(--acento);
+  outline-offset: -2px;
+}
+
+.tablero--arrastrando {
+  /* Sin esto, arrastrar selecciona el texto de los tweets por el camino. */
+  user-select: none;
+}
+
+.tablero--arrastrando .columna-cabecera {
+  cursor: grabbing;
+}
+
+/* CLAVE: las <webview> se tragan los eventos del raton. Si no las hicieramos
+   transparentes al puntero mientras dura el arrastre, perderiamos el rastro en
+   cuanto pasaramos por encima de una columna en vivo y el arrastre se quedaria
+   colgado a medias. */
+.tablero--arrastrando .columna-webview {
+  pointer-events: none;
 }
 
 .columna-cabecera-fila {

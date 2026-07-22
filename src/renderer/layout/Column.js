@@ -71,6 +71,14 @@ export class Columna {
     const fila = document.createElement('div');
     fila.className = 'columna-cabecera-fila';
 
+    // Asa de arrastre. Es solo la pista visual: en realidad se puede arrastrar
+    // desde toda la cabecera (ver arrastre.js), que es un blanco mas facil.
+    const asa = document.createElement('span');
+    asa.className = 'columna-asa';
+    asa.textContent = '⠿';
+    asa.title = 'Arrastra para mover la columna';
+    fila.appendChild(asa);
+
     const titulo = document.createElement('h2');
     titulo.textContent = this.columna.titulo;
     fila.appendChild(titulo);
@@ -128,6 +136,9 @@ export class Columna {
     cabecera.appendChild(this.visor);
     this.pintarVisor();
 
+    // El tablero la usa como asa de arrastre para reordenar.
+    this.cabecera = cabecera;
+
     return cabecera;
   }
 
@@ -148,7 +159,33 @@ export class Columna {
     webview.addEventListener('did-navigate', alNavegar);
     webview.addEventListener('did-navigate-in-page', alNavegar);
 
+    // Cada navegación carga el preload de cero y se pierde su temporizador, así
+    // que hay que volver a decirle el ajuste. 'dom-ready' salta en cada carga.
+    webview.addEventListener('dom-ready', () => this.enviarAutoMostrarPosts());
+
     return webview;
+  }
+
+  /**
+   * Enciende o apaga dentro de X el auto-clic en "Mostrar N posts".
+   * Solo tiene sentido en columnas en vivo: las de datos no tienen webview.
+   *
+   * @param {boolean} [activo] Si se omite, reenvía el último valor conocido.
+   */
+  enviarAutoMostrarPosts(activo) {
+    if (activo !== undefined) this.autoMostrarPosts = activo;
+    if (!this.vivo || !this.webview) return;
+
+    // Si la webview aún no ha cargado, send() peta. El 'dom-ready' de arriba se
+    // encargará de reenviarlo en cuanto esté lista.
+    try {
+      this.webview.send(window.config.canalAutoMostrar, {
+        activo: this.autoMostrarPosts === true,
+        intervaloMs: window.config.autoClicMs,
+      });
+    } catch {
+      /* la webview todavía no está lista */
+    }
   }
 
   /** Si la URL es una búsqueda de X, guarda los datos y muestra el botón de añadir. */

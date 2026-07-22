@@ -23,7 +23,7 @@
 // Electron los comandos CDP no resuelven hasta que la ventana ha cargado algo,
 // y para entonces ya es tarde.)
 
-const { contextBridge } = require('electron');
+const { contextBridge, ipcRenderer } = require('electron');
 
 function desactivarPasskeys() {
   const rechazar = () =>
@@ -48,3 +48,66 @@ if (typeof contextBridge.executeInMainWorld === 'function') {
   // Electron viejo. Preferimos avisar a fallar en silencio y que salte Windows Hello.
   console.error('[x-inject] executeInMainWorld no existe: NO se han desactivado las passkeys');
 }
+
+// --- Auto-clic en "Mostrar N posts" ---
+//
+// Cuando llegan posts nuevos, X saca arriba del timeline un boton tipo pastilla
+// ("Mostrar 35 posts"). Si el usuario lo pide, lo pulsamos nosotros.
+//
+// AQUI NO HACE FALTA executeInMainWorld: el contexto esta aislado, pero el DOM es
+// EL MISMO. Buscar un elemento y pulsarlo funciona desde aqui sin tocar el mundo
+// de la pagina, que es mas seguro.
+//
+// ARRANCA APAGADO A PROPOSITO: este preload lo usan tambien los cosechadores
+// (ventanas ocultas). Solo se enciende cuando el tablero manda el mensaje, y solo
+// se lo manda a las columnas en vivo.
+
+// Debe coincidir con CANALES.X_AUTO_MOSTRAR_POSTS de src/shared/channels.js.
+// Se repite el texto porque este preload corre en sandbox y no puede hacer
+// require() de archivos nuestros: solo del modulo 'electron'.
+const CANAL_AUTO_MOSTRAR = 'x:autoMostrarPosts';
+
+let temporizadorAutoClic = null;
+
+/** Pulsa el boton de posts nuevos si esta en pantalla. Devuelve true si lo pulso. */
+function pulsarPostsNuevos() {
+  // pillLabel es el texto de dentro ("Mostrar 35 posts"); lo que se puede pulsar
+  // es su ancestro con role="button". Nos apoyamos en data-testid porque las
+  // clases de X son generadas y cambian solas.
+  const etiqueta = document.querySelector('[data-testid="pillLabel"]');
+  if (!etiqueta) return false;
+
+  const boton = etiqueta.closest('[role="button"]');
+  if (!boton) return false;
+
+  boton.click();
+  return true;
+}
+
+/** Igual que en la cosecha: nunca dos esperas iguales seguidas. */
+function conJitter(ms) {
+  const variacion = ms * 0.4;
+  return ms - variacion + Math.random() * variacion * 2;
+}
+
+/**
+ * Se reprograma con setTimeout en cada vuelta, no con setInterval: asi cada
+ * espera lleva un jitter distinto y nunca se solapan dos comprobaciones.
+ */
+function programarAutoClic(intervaloMs) {
+  temporizadorAutoClic = setTimeout(() => {
+    pulsarPostsNuevos();
+    programarAutoClic(intervaloMs);
+  }, conJitter(intervaloMs));
+}
+
+function configurarAutoClic({ activo, intervaloMs }) {
+  if (temporizadorAutoClic) {
+    clearTimeout(temporizadorAutoClic);
+    temporizadorAutoClic = null;
+  }
+
+  if (activo) programarAutoClic(intervaloMs);
+}
+
+ipcRenderer.on(CANAL_AUTO_MOSTRAR, (_evento, datos) => configurarAutoClic(datos));

@@ -5,6 +5,7 @@ const CANALES = {
   COLUMNAS_LISTAR: 'columnas:listar',
   COLUMNAS_CREAR: 'columnas:crear',
   COLUMNAS_BORRAR: 'columnas:borrar',
+  COLUMNAS_REORDENAR: 'columnas:reordenar',
   TWEETS_DE_COLUMNA: 'tweets:deColumna',
   TWEETS_GUARDADOS: 'tweets:guardados',
   TWEET_GUARDAR: 'tweets:guardar',
@@ -14,6 +15,12 @@ const CANALES = {
   X_ABRIR_LOGIN: 'x:abrirLogin',
   X_ABRIR_URL: 'x:abrirUrl',
   X_LIMPIAR_SESION: 'x:limpiarSesion',
+  AJUSTES_LEER: 'ajustes:leer',
+  AJUSTES_GUARDAR: 'ajustes:guardar',
+
+  // Del tablero HACIA dentro de una webview de X (webview.send).
+  // Lo escucha src/preload/x-inject.js.
+  X_AUTO_MOSTRAR_POSTS: 'x:autoMostrarPosts',
   ESTADO_APP: 'app:estado',
 
   // Main avisa al renderer (send/on)

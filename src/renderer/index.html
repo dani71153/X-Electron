@@ -17,6 +17,7 @@
         <button id="btn-anadir">+ Columna</button>
         <button id="btn-refrescar">Refrescar</button>
         <button id="btn-abrir-x">Abrir X.com</button>
+        <button id="btn-opciones" title="Opciones">⚙</button>
         <!-- Siempre visible: cuando X invalida la sesion, las cookies viejas se
              quedan y la app cree que sigue habiendo sesion, asi que el aviso de
              abajo no aparece. Si el boton viviera solo ahi, no se veria justo
@@ -96,6 +97,25 @@
         <div class="dialogo-acciones">
           <button type="button" id="btn-cancelar">Cancelar</button>
           <button type="submit">Crear</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="dialogo-opciones">
+      <form id="form-opciones" method="dialog">
+        <h2>Opciones</h2>
+
+        <label class="checkbox">
+          <input id="campo-auto-mostrar" type="checkbox" />
+          Mostrar posts nuevos automáticamente
+          <small>
+            En las columnas en vivo, pulsa solo el botón "Mostrar N posts" cuando aparece.
+            Lo comprueba cada ~45 s con variación aleatoria, para no parecer un robot.
+          </small>
+        </label>
+
+        <div class="dialogo-acciones">
+          <button type="button" id="btn-cerrar-opciones">Cerrar</button>
         </div>
       </form>
     </dialog>

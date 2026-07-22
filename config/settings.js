@@ -54,6 +54,19 @@ const AJUSTES = {
   // Tope de la espera. Se dobla en cada rechazo hasta llegar aqui.
   BACKOFF_MAX_MS: 30 * 60 * 1000,
 
+  // --- Ajustes que el usuario cambia desde el modal de opciones ---
+
+  // Valores de partida. Lo que el usuario guarde manda sobre esto.
+  AJUSTES_POR_DEFECTO: {
+    // Pulsar solo el boton "Mostrar N posts" en las columnas en vivo.
+    autoMostrarPostsNuevos: false,
+  },
+
+  // Cada cuanto mira una columna en vivo si ha aparecido el boton (ms).
+  // Se le aplica JITTER: pulsar siempre exactamente cada X segundos es justo el
+  // patron que delata a un robot, y estas son ventanas con la cuenta real.
+  AUTO_CLIC_MS: 45 * 1000,
+
   // --- Interfaz ---
 
   // Cuantos tweets pide el renderer por columna.

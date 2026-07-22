@@ -48,6 +48,13 @@ CREATE TABLE IF NOT EXISTS column_tweets (
 
 CREATE INDEX IF NOT EXISTS idx_column_tweets_column ON column_tweets (column_id);
 
+-- Ajustes de la app (clave/valor). Los valores se guardan como texto: quien lee
+-- sabe si esperaba un booleano o un numero (ver leerAjustes en queries.js).
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 -- Listas del usuario, capturadas al visitar x.com/i/lists.
 CREATE TABLE IF NOT EXISTS lists (
   id           TEXT PRIMARY KEY,   -- id_str de la lista

@@ -181,6 +181,36 @@ formulario.addEventListener('submit', async (evento) => {
   await recargarColumnas();
 });
 
+// --- Modal de opciones ---
+
+const dialogoOpciones = document.getElementById('dialogo-opciones');
+const campoAutoMostrar = document.getElementById('campo-auto-mostrar');
+
+document.getElementById('btn-opciones').addEventListener('click', () => {
+  dialogoOpciones.showModal();
+});
+
+document.getElementById('btn-cerrar-opciones').addEventListener('click', () => {
+  dialogoOpciones.close();
+});
+
+// Se guarda al momento de marcarlo, sin boton de "aceptar": es un solo ajuste y
+// asi se ve el efecto en las columnas al instante.
+campoAutoMostrar.addEventListener('change', async () => {
+  const activo = campoAutoMostrar.checked;
+
+  tablero.setAutoMostrarPosts(activo);
+  await window.api.guardarAjustes({ autoMostrarPostsNuevos: activo });
+});
+
+/** Lee los ajustes guardados y los aplica al tablero y al modal. */
+async function cargarAjustes() {
+  const ajustes = await window.api.leerAjustes();
+
+  campoAutoMostrar.checked = ajustes.autoMostrarPostsNuevos;
+  tablero.setAutoMostrarPosts(ajustes.autoMostrarPostsNuevos);
+}
+
 // --- Aviso de sesion ---
 
 const avisoSesion = document.getElementById('aviso-sesion');
@@ -230,6 +260,11 @@ window.api.alCambiarEstado(({ sesionIniciada }) => {
 async function arrancar() {
   const { sesionIniciada } = await window.api.estado();
   mostrarEstadoSesion(sesionIniciada);
+
+  // ANTES de crear las columnas: así cada columna en vivo nace ya con el ajuste
+  // puesto y no hay que recorrerlas otra vez después.
+  await cargarAjustes();
+
   await recargarColumnas();
 }
 

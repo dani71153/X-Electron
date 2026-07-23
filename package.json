@@ -7,6 +7,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "dev:memory": "electron . --dev --log-memory",
     "dist": "electron-builder --win portable",
     "pack": "electron-builder --dir"
   },

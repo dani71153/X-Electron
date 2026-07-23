@@ -2,7 +2,8 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
-    <!-- Sin conexiones externas salvo las imagenes de X (avatares y media). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Sin conexiones externas salvo las imágenes de X (avatares y media). -->
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' https://pbs.twimg.com https://abs.twimg.com data:;"
@@ -11,37 +12,182 @@
     <link rel="stylesheet" href="styles/base.css" />
   </head>
   <body>
-    <header class="barra">
-      <h1>X-Electron</h1>
-      <div class="barra-acciones">
-        <button id="btn-anadir">+ Columna</button>
-        <button id="btn-refrescar">Refrescar</button>
-        <button id="btn-abrir-x">Abrir X.com</button>
-        <button id="btn-opciones" title="Opciones">⚙</button>
-        <!-- Siempre visible: cuando X invalida la sesion, las cookies viejas se
-             quedan y la app cree que sigue habiendo sesion, asi que el aviso de
-             abajo no aparece. Si el boton viviera solo ahi, no se veria justo
-             cuando hace falta. -->
-        <button id="btn-limpiar-sesion" title="Borra las cookies de X y abre el login de cero">
-          Limpiar sesión de X
-        </button>
+    <a class="saltar-contenido" href="#tablero">Saltar al tablero</a>
+
+    <header id="barra-herramientas" class="barra">
+      <div class="marca" aria-label="X-Electron">
+        <span class="marca-simbolo" aria-hidden="true">X</span>
+        <span class="marca-texto">
+          <h1>X-Electron</h1>
+          <span>Panel de lectura</span>
+        </span>
       </div>
+
+      <label class="selector-espacio-wrap">
+        <span>Espacio</span>
+        <select id="selector-espacio" aria-label="Espacio de trabajo activo">
+          <option value="">Todas las columnas</option>
+        </select>
+      </label>
+
+      <nav class="barra-acciones" aria-label="Acciones del tablero">
+        <button
+          id="btn-anadir"
+          class="boton boton--primario boton--herramienta"
+          type="button"
+          aria-label="Nueva columna"
+          aria-keyshortcuts="Control+N"
+          title="Nueva columna (Ctrl+N)"
+        >
+          <span class="boton-icono" aria-hidden="true">+</span>
+          <span class="boton-etiqueta boton-etiqueta--adaptable">Nueva columna</span>
+        </button>
+        <button
+          id="btn-pausar-cosecha"
+          class="boton boton--secundario boton--herramienta"
+          type="button"
+          aria-label="Pausar cosecha"
+          title="Pausar cosecha y liberar sus ventanas ocultas"
+        >
+          <span class="boton-icono" aria-hidden="true">Ⅱ</span>
+          <span class="boton-etiqueta boton-etiqueta--adaptable">Pausar</span>
+        </button>
+        <button
+          id="btn-refrescar"
+          class="boton boton--secundario boton--herramienta"
+          type="button"
+          aria-label="Refrescar columnas"
+          aria-keyshortcuts="Control+R"
+          title="Refrescar columnas (Ctrl+R)"
+        >
+          <span class="boton-icono boton-icono--refrescar" aria-hidden="true">&#8635;</span>
+          <span class="boton-etiqueta boton-etiqueta--adaptable">Refrescar</span>
+        </button>
+
+        <details id="menu-mas" class="menu-mas">
+          <summary class="boton boton--silencioso boton--herramienta" aria-label="Más acciones" title="Más acciones">
+            <span class="boton-icono boton-icono--mas" aria-hidden="true">&#8226;&#8226;&#8226;</span>
+            <span class="boton-etiqueta boton-etiqueta--adaptable">Más</span>
+          </summary>
+
+          <div class="menu-mas-panel" role="group" aria-label="Más acciones">
+            <button id="btn-paleta" class="menu-accion" type="button" aria-keyshortcuts="Control+K">
+              <span class="menu-accion-linea">
+                <span class="menu-accion-titulo">Paleta de comandos</span>
+                <kbd class="atajo">Ctrl+K</kbd>
+              </span>
+              <span class="menu-accion-pista">Busca acciones y salta a cualquier columna</span>
+            </button>
+            <button id="btn-abrir-x" class="menu-accion" type="button">
+              <span class="menu-accion-titulo">Abrir X.com</span>
+              <span class="menu-accion-pista">Cuenta, inicio de sesión y acceso directo</span>
+            </button>
+            <button id="btn-opciones" class="menu-accion" type="button" aria-keyshortcuts="Control+,">
+              <span class="menu-accion-linea">
+                <span class="menu-accion-titulo">Opciones</span>
+                <kbd class="atajo">Ctrl+,</kbd>
+              </span>
+              <span class="menu-accion-pista">Comportamiento de las columnas en vivo</span>
+            </button>
+            <button id="btn-guardar-espacio" class="menu-accion" type="button">
+              <span class="menu-accion-titulo">Guardar espacio actual</span>
+              <span class="menu-accion-pista">Crea una vista con las columnas visibles</span>
+            </button>
+            <button id="btn-exportar-config" class="menu-accion" type="button">
+              <span class="menu-accion-titulo">Exportar configuración</span>
+              <span class="menu-accion-pista">Guarda columnas, filtros, espacios y preferencias</span>
+            </button>
+            <button id="btn-importar-config" class="menu-accion" type="button">
+              <span class="menu-accion-titulo">Importar configuración</span>
+              <span class="menu-accion-pista">Restaura una copia JSON de X-Electron</span>
+            </button>
+            <button
+              id="btn-ocultar-barra"
+              class="menu-accion"
+              type="button"
+              aria-keyshortcuts="Control+Shift+B"
+            >
+              <span class="menu-accion-linea">
+                <span class="menu-accion-titulo">Ocultar barra</span>
+                <kbd class="atajo">Ctrl+Shift+B</kbd>
+              </span>
+              <span class="menu-accion-pista">Gana espacio vertical; la preferencia queda guardada</span>
+            </button>
+
+            <div class="menu-separador" aria-hidden="true"></div>
+
+            <!-- Permite recuperar el login aunque queden cookies inválidas. -->
+            <button
+              id="btn-limpiar-sesion"
+              class="menu-accion menu-accion--peligro"
+              type="button"
+              title="Borra las cookies de X y abre el login desde cero"
+            >
+              <span class="menu-accion-titulo">Limpiar sesión de X</span>
+              <span class="menu-accion-pista">Borra las cookies locales y obliga a entrar de nuevo</span>
+            </button>
+          </div>
+        </details>
+      </nav>
     </header>
 
-    <div id="aviso-sesion" class="aviso" hidden>
-      No has iniciado sesión en X. Las columnas no se llenarán hasta que entres.
-      <button id="btn-entrar">Iniciar sesión</button>
-    </div>
+    <button
+      id="btn-mostrar-barra"
+      class="mostrar-barra"
+      type="button"
+      aria-label="Mostrar barra de herramientas"
+      aria-keyshortcuts="Control+Shift+B"
+      title="Mostrar barra de herramientas (Ctrl+Shift+B)"
+      hidden
+    >
+      <span aria-hidden="true">&#8964;</span>
+    </button>
 
-    <main id="tablero" class="tablero"></main>
+    <aside id="aviso-sesion" class="aviso" aria-live="polite" hidden>
+      <span class="aviso-icono" aria-hidden="true">i</span>
+      <span>No has iniciado sesión en X. Las columnas se llenarán cuando entres.</span>
+      <button id="btn-entrar" class="boton boton--aviso" type="button">Iniciar sesión</button>
+    </aside>
 
-    <dialog id="dialogo-columna">
+    <main id="tablero" class="tablero" aria-label="Columnas de X" aria-busy="true">
+      <section id="estado-tablero" class="estado-tablero" aria-live="polite">
+        <div class="estado-grafico" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <p class="estado-etiqueta">Espacio de trabajo</p>
+        <h2 id="estado-titulo">Cargando columnas</h2>
+        <p id="estado-texto">Leyendo la configuración guardada en este equipo.</p>
+        <div class="estado-acciones">
+          <button id="btn-estado-anadir" class="boton boton--primario" type="button" hidden>
+            Crear primera columna
+          </button>
+          <button id="btn-estado-reintentar" class="boton boton--secundario" type="button" hidden>
+            Reintentar
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <aside id="toast" class="toast" role="status" aria-live="polite" hidden>
+      <span id="toast-texto"></span>
+      <button id="toast-deshacer" type="button" hidden>Deshacer</button>
+    </aside>
+
+    <dialog id="dialogo-columna" aria-labelledby="titulo-dialogo-columna" aria-describedby="texto-dialogo-columna">
       <form id="form-columna" method="dialog">
-        <h2>Nueva columna</h2>
+        <header class="dialogo-cabecera">
+          <span class="dialogo-marca" aria-hidden="true">+</span>
+          <div>
+            <h2 id="titulo-dialogo-columna">Nueva columna</h2>
+            <p id="texto-dialogo-columna">Elige qué flujo quieres mantener a la vista.</p>
+          </div>
+        </header>
 
         <label>
           Título
-          <input id="campo-titulo" type="text" required placeholder="Noticias de IA" />
+          <input id="campo-titulo" type="text" required placeholder="Noticias de IA" autocomplete="off" />
         </label>
 
         <label>
@@ -55,24 +201,24 @@
             <option value="saved">Guardados (local)</option>
           </select>
           <small id="aviso-tipo" hidden>
-            Ojo: cosechar Notificaciones hace que X las marque como leídas.
+            Cosechar notificaciones hace que X las marque como leídas.
           </small>
         </label>
 
         <div id="lista-selector" hidden>
           <div class="lista-cabecera">
-            <span>Tus listas (un click para crear la columna)</span>
-            <button type="button" id="btn-actualizar-listas">Actualizar</button>
+            <span>Tus listas</span>
+            <button type="button" id="btn-actualizar-listas" class="boton boton--compacto">Actualizar</button>
           </div>
           <div id="lista-botones"></div>
           <p id="lista-vacia" class="lista-vacia" hidden>
-            No hay listas capturadas todavía. Pulsa "Actualizar" (abre tus listas en segundo plano).
+            No hay listas capturadas. Actualiza para abrir tus listas en segundo plano.
           </p>
         </div>
 
         <label>
           Fuente
-          <input id="campo-fuente" type="text" />
+          <input id="campo-fuente" type="text" autocomplete="off" />
           <small id="pista-fuente"></small>
         </label>
 
@@ -88,34 +234,139 @@
 
         <label class="checkbox">
           <input id="campo-vivo" type="checkbox" />
-          Mostrar en vivo (webview de X)
-          <small>En vez de cosechar datos, embebe x.com en directo. Útil para vigilar varios a la vez. Consume más memoria.</small>
+          <span>Mostrar en vivo (webview de X)</span>
+          <small>Embebe X.com en directo. Resulta útil para vigilar varios flujos, pero consume más memoria.</small>
         </label>
 
-        <p id="error-columna" class="error" hidden></p>
+        <p id="error-columna" class="error" role="alert" hidden></p>
 
         <div class="dialogo-acciones">
-          <button type="button" id="btn-cancelar">Cancelar</button>
-          <button type="submit">Crear</button>
+          <button type="button" id="btn-cancelar" class="boton boton--secundario">Cancelar</button>
+          <button type="submit" class="boton boton--primario">Crear columna</button>
         </div>
       </form>
     </dialog>
 
-    <dialog id="dialogo-opciones">
+    <dialog id="dialogo-opciones" aria-labelledby="titulo-dialogo-opciones">
       <form id="form-opciones" method="dialog">
-        <h2>Opciones</h2>
+        <header class="dialogo-cabecera">
+          <span class="dialogo-marca" aria-hidden="true">O</span>
+          <div>
+            <h2 id="titulo-dialogo-opciones">Opciones</h2>
+            <p>Personaliza la interfaz y el comportamiento de las columnas.</p>
+          </div>
+        </header>
 
-        <label class="checkbox">
+        <label class="checkbox checkbox--panel">
           <input id="campo-auto-mostrar" type="checkbox" />
-          Mostrar posts nuevos automáticamente
+          <span>Mostrar posts nuevos automáticamente</span>
           <small>
-            En las columnas en vivo, pulsa solo el botón "Mostrar N posts" cuando aparece.
-            Lo comprueba cada ~45 s con variación aleatoria, para no parecer un robot.
+            Pulsa automáticamente “Mostrar N posts” cuando aparece. La comprobación usa un intervalo variable cercano a 45 segundos.
           </small>
         </label>
 
+        <div class="opciones-grid">
+          <label>
+            Densidad
+            <select id="campo-densidad">
+              <option value="comoda">Cómoda</option>
+              <option value="compacta">Compacta</option>
+            </select>
+          </label>
+          <label>
+            Ancho predeterminado
+            <select id="campo-ancho-columna">
+              <option value="320">Estrecho · 320 px</option>
+              <option value="380">Normal · 380 px</option>
+              <option value="460">Amplio · 460 px</option>
+              <option value="540">Muy amplio · 540 px</option>
+            </select>
+          </label>
+        </div>
+
+        <section class="opciones-seccion" aria-labelledby="titulo-filtros-locales">
+          <header>
+            <h3 id="titulo-filtros-locales">Filtros locales</h3>
+            <p>Se aplican después de descargar; no generan peticiones adicionales a X.</p>
+          </header>
+          <label>
+            Palabras silenciadas
+            <textarea id="campo-palabras-silenciadas" rows="2" placeholder="spoilers, promoción, crypto"></textarea>
+          </label>
+          <label>
+            Usuarios silenciados
+            <input id="campo-usuarios-silenciados" type="text" placeholder="usuario1, @usuario2" />
+          </label>
+          <label class="checkbox">
+            <input id="campo-ocultar-retweets" type="checkbox" />
+            <span>Ocultar retweets</span>
+          </label>
+          <label class="checkbox">
+            <input id="campo-ocultar-media" type="checkbox" />
+            <span>Ocultar posts con multimedia</span>
+          </label>
+        </section>
+
+        <section class="opciones-seccion" aria-labelledby="titulo-espacios">
+          <header class="opciones-seccion-cabecera">
+            <div>
+              <h3 id="titulo-espacios">Espacios de trabajo</h3>
+              <p>Vistas guardadas de tus columnas actuales.</p>
+            </div>
+            <button id="btn-nuevo-espacio-opciones" class="boton boton--compacto" type="button">Nuevo</button>
+          </header>
+          <div id="lista-espacios" class="lista-espacios"></div>
+        </section>
+
+        <section class="atajos-panel" aria-labelledby="titulo-atajos">
+          <header>
+            <h3 id="titulo-atajos">Atajos de teclado</h3>
+            <p>También funcionan cuando el foco está dentro de una columna en vivo.</p>
+          </header>
+          <dl class="atajos-lista">
+            <div><dt>Nueva columna</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>N</kbd></dd></div>
+            <div><dt>Refrescar columnas</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>R</kbd></dd></div>
+            <div><dt>Abrir opciones</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>,</kbd></dd></div>
+            <div><dt>Mostrar u ocultar barra</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>B</kbd></dd></div>
+            <div><dt>Paleta de comandos</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd></dd></div>
+            <div><dt>Columna anterior/siguiente</dt><dd><kbd>Alt</kbd><span>+</span><kbd>←</kbd><span>/</span><kbd>→</kbd></dd></div>
+            <div><dt>Primera/última columna</dt><dd><kbd>Alt</kbd><span>+</span><kbd>Home</kbd><span>/</span><kbd>End</kbd></dd></div>
+          </dl>
+        </section>
+
         <div class="dialogo-acciones">
-          <button type="button" id="btn-cerrar-opciones">Cerrar</button>
+          <button type="button" id="btn-cerrar-opciones" class="boton boton--primario">Cerrar</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="dialogo-paleta" class="dialogo-paleta" aria-labelledby="titulo-paleta">
+      <form method="dialog">
+        <header class="paleta-cabecera">
+          <h2 id="titulo-paleta">Comandos</h2>
+          <kbd>Esc</kbd>
+        </header>
+        <input id="campo-paleta" type="search" autocomplete="off" placeholder="Buscar una acción o columna…" />
+        <div id="lista-paleta" class="lista-paleta" role="listbox" aria-label="Comandos disponibles"></div>
+      </form>
+    </dialog>
+
+    <dialog id="dialogo-espacio" aria-labelledby="titulo-dialogo-espacio">
+      <form id="form-espacio" method="dialog">
+        <header class="dialogo-cabecera">
+          <span class="dialogo-marca" aria-hidden="true">E</span>
+          <div>
+            <h2 id="titulo-dialogo-espacio">Guardar espacio</h2>
+            <p>Conserva una vista de las columnas que están visibles ahora.</p>
+          </div>
+        </header>
+        <label>
+          Nombre
+          <input id="campo-nombre-espacio" type="text" required maxlength="50" autocomplete="off" placeholder="Seguimiento diario" />
+        </label>
+        <div class="dialogo-acciones">
+          <button id="btn-cancelar-espacio" class="boton boton--secundario" type="button">Cancelar</button>
+          <button class="boton boton--primario" type="submit">Guardar espacio</button>
         </div>
       </form>
     </dialog>

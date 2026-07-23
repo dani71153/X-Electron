@@ -57,8 +57,10 @@ function crearMetricas(metricas) {
 
   for (const [etiqueta, valor] of items) {
     const span = document.createElement('span');
+    span.className = 'tweet-metrica';
     span.title = etiqueta;
     span.textContent = `${etiqueta[0]} ${formatearNumero(valor ?? 0)}`;
+    span.setAttribute('aria-label', `${etiqueta}: ${formatearNumero(valor ?? 0)}`);
     fila.appendChild(span);
   }
 
@@ -69,32 +71,49 @@ function crearMetricas(metricas) {
 function crearAcciones(tweet, acciones) {
   const fila = document.createElement('div');
   fila.className = 'tweet-acciones';
+  fila.setAttribute('aria-label', 'Acciones del post');
 
   // Estrella: guardar/quitar de guardados. Refleja el estado y lo cambia al vuelo.
   const estrella = document.createElement('button');
+  estrella.type = 'button';
   estrella.className = 'tweet-accion';
   const pintarEstrella = (guardado) => {
     estrella.textContent = guardado ? '★' : '☆';
     estrella.title = guardado ? 'Quitar de guardados' : 'Guardar localmente';
+    estrella.setAttribute('aria-label', estrella.title);
+    estrella.setAttribute('aria-pressed', String(guardado));
     estrella.classList.toggle('activa', guardado);
   };
   let guardado = tweet.guardado;
   pintarEstrella(guardado);
   estrella.addEventListener('click', async (e) => {
     e.stopPropagation();
-    guardado = !guardado;
+    const estadoAnterior = guardado;
+    guardado = !estadoAnterior;
     pintarEstrella(guardado);
-    await window.api.guardarTweet(tweet.id, guardado);
-    if (acciones.alCambiarGuardado) acciones.alCambiarGuardado(tweet.id, guardado);
+    estrella.disabled = true;
+    try {
+      await window.api.guardarTweet(tweet.id, guardado);
+      if (acciones.alCambiarGuardado) acciones.alCambiarGuardado(tweet.id, guardado);
+    } catch {
+      guardado = estadoAnterior;
+      pintarEstrella(guardado);
+      estrella.title = 'No se pudo cambiar el estado de guardado';
+      estrella.setAttribute('aria-label', estrella.title);
+    } finally {
+      estrella.disabled = false;
+    }
   });
   fila.appendChild(estrella);
 
   // Abrir el tweet en la columna en vivo principal (para leer/responder en X).
   if (tweet.enlace) {
     const abrir = document.createElement('button');
+    abrir.type = 'button';
     abrir.className = 'tweet-accion';
     abrir.textContent = '↗';
     abrir.title = 'Abrir en la columna en vivo';
+    abrir.setAttribute('aria-label', abrir.title);
     abrir.addEventListener('click', (e) => {
       e.stopPropagation();
       if (acciones.alAbrir) acciones.alAbrir(tweet.enlace);
@@ -104,14 +123,17 @@ function crearAcciones(tweet, acciones) {
 
   // Exportar el JSON crudo original de X.
   const exportar = document.createElement('button');
+  exportar.type = 'button';
   exportar.className = 'tweet-accion';
   exportar.textContent = '{ }';
   exportar.title = 'Exportar JSON del tweet';
+  exportar.setAttribute('aria-label', exportar.title);
   exportar.addEventListener('click', async (e) => {
     e.stopPropagation();
     const r = await window.api.exportarTweet(tweet.id);
     if (r && r.ok) exportar.title = 'Guardado en ' + r.ruta;
     else if (r && r.motivo) exportar.title = r.motivo;
+    exportar.setAttribute('aria-label', exportar.title);
   });
   fila.appendChild(exportar);
 
@@ -129,7 +151,7 @@ export function crearTweet(tweet, acciones = {}) {
   const avatar = document.createElement('img');
   avatar.className = 'tweet-avatar';
   avatar.src = tweet.autor.avatarUrl;
-  avatar.alt = '';
+  avatar.alt = `Avatar de ${tweet.autor.nombre}`;
   articulo.appendChild(avatar);
 
   const cuerpo = document.createElement('div');

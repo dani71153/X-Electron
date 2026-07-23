@@ -213,6 +213,38 @@ function reordenarColumnas(idsEnOrden) {
   }
 }
 
+/** Reemplaza la configuracion de columnas dentro de una sola transaccion. */
+function reemplazarColumnas(columnas) {
+  const db = obtenerBaseDeDatos();
+  const insertar = db.prepare(`
+    INSERT INTO columns (id, title, type, source, position, live, filters_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  db.exec('BEGIN');
+  try {
+    db.exec('DELETE FROM column_tweets');
+    db.exec('DELETE FROM columns');
+
+    columnas.forEach((columna, indice) => {
+      insertar.run(
+        entero(columna.id),
+        texto(columna.titulo),
+        texto(columna.tipo),
+        texto(columna.fuente) ?? '',
+        indice,
+        bool(columna.vivo),
+        JSON.stringify(columna.filtros ?? {}),
+      );
+    });
+
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 // ---------- Ajustes ----------
 
 /** Todos los ajustes guardados, como objeto clave -> texto. */
@@ -291,6 +323,7 @@ module.exports = {
   crearColumna,
   borrarColumna,
   reordenarColumnas,
+  reemplazarColumnas,
   contarColumnas,
   leerAjustes,
   guardarAjuste,

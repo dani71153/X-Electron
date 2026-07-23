@@ -31,6 +31,17 @@ export class Columna {
     this.acciones = acciones; // callbacks compartidos: alCambiarGuardado, alAbrir
     this.vivo = columna.vivo === true;
     this.esGuardados = columna.tipo === 'saved';
+    this.estadoUi = {
+      colapsada: acciones.estadoUi?.colapsada === true,
+      expandida: this.vivo && acciones.estadoUi?.expandida === true,
+      ancho: Number(acciones.estadoUi?.ancho) || Number(acciones.anchoPredeterminado) || 380,
+      leidoHasta: Number(acciones.estadoUi?.leidoHasta) || 0,
+    };
+    this.filtrosLocales = acciones.filtrosLocales ?? {};
+    this.noLeidos = 0;
+    this.ocultosPorFiltro = 0;
+    this.tweetsActuales = [];
+    this.cosechaPausada = false;
 
     // Estado de cosecha, solo para columnas de datos.
     this.fase = 'esperando'; // 'esperando' | 'cosechando' | 'ok'
@@ -38,11 +49,17 @@ export class Columna {
     this.tickVisor = null;
 
     this.elemento = this.crearElemento();
+    this.aplicarEstadoUi();
   }
 
   crearElemento() {
     const seccion = document.createElement('section');
     seccion.className = this.vivo ? 'columna columna--vivo' : 'columna';
+    seccion.setAttribute('aria-labelledby', `titulo-columna-${this.columna.id}`);
+    seccion.tabIndex = -1;
+    seccion.addEventListener('pointerdown', () => {
+      if (this.acciones.alActivarColumna) this.acciones.alActivarColumna(this.columna.id);
+    });
 
     seccion.appendChild(this.crearCabecera());
 
@@ -58,6 +75,9 @@ export class Columna {
     } else {
       this.lista = document.createElement('div');
       this.lista.className = 'columna-lista';
+      this.lista.addEventListener('scroll', () => {
+        if (this.lista.scrollTop < 50 && this.noLeidos > 0) this.marcarLeido();
+      }, { passive: true });
       seccion.appendChild(this.lista);
     }
 
@@ -77,9 +97,11 @@ export class Columna {
     asa.className = 'columna-asa';
     asa.textContent = '⠿';
     asa.title = 'Arrastra para mover la columna';
+    asa.setAttribute('aria-hidden', 'true');
     fila.appendChild(asa);
 
     const titulo = document.createElement('h2');
+    titulo.id = `titulo-columna-${this.columna.id}`;
     titulo.textContent = this.columna.titulo;
     fila.appendChild(titulo);
 
@@ -92,26 +114,43 @@ export class Columna {
       // Fijar como principal: los tweets que abras desde otras columnas se
       // cargan en la webview de la columna principal.
       this.botonPrincipal = document.createElement('button');
+      this.botonPrincipal.type = 'button';
       this.botonPrincipal.className = 'columna-icono columna-pin';
-      this.botonPrincipal.textContent = '📌';
+      this.botonPrincipal.textContent = '⌖';
       this.botonPrincipal.title = 'Fijar como columna principal';
+      this.botonPrincipal.setAttribute('aria-label', 'Fijar como columna principal');
+      this.botonPrincipal.setAttribute('aria-pressed', 'false');
       this.botonPrincipal.addEventListener('click', () => {
         if (this.acciones.alFijarPrincipal) this.acciones.alFijarPrincipal(this.columna.id);
       });
       fila.appendChild(this.botonPrincipal);
 
       const recargar = document.createElement('button');
+      recargar.type = 'button';
       recargar.className = 'columna-icono';
-      recargar.textContent = '⟳';
+      recargar.textContent = '↻';
       recargar.title = 'Recargar';
+      recargar.setAttribute('aria-label', 'Recargar columna');
       recargar.addEventListener('click', () => this.webview?.reload());
       fila.appendChild(recargar);
 
+      this.botonExpandir = document.createElement('button');
+      this.botonExpandir.type = 'button';
+      this.botonExpandir.className = 'columna-icono columna-expandir';
+      this.botonExpandir.textContent = '⛶';
+      this.botonExpandir.title = 'Usar el espacio disponible';
+      this.botonExpandir.setAttribute('aria-label', 'Usar el espacio disponible');
+      this.botonExpandir.setAttribute('aria-pressed', 'false');
+      this.botonExpandir.addEventListener('click', () => this.alternarExpandida());
+      fila.appendChild(this.botonExpandir);
+
       // Aparece cuando navegas a una búsqueda dentro de la webview.
       this.botonBusqueda = document.createElement('button');
+      this.botonBusqueda.type = 'button';
       this.botonBusqueda.className = 'columna-icono columna-anadir-busqueda';
-      this.botonBusqueda.textContent = '＋🔍';
+      this.botonBusqueda.textContent = '+';
       this.botonBusqueda.title = 'Añadir esta búsqueda como columna';
+      this.botonBusqueda.setAttribute('aria-label', 'Añadir esta búsqueda como columna');
       this.botonBusqueda.hidden = true;
       this.botonBusqueda.addEventListener('click', () => {
         if (this.busquedaDetectada && this.acciones.alAnadirBusqueda) {
@@ -121,10 +160,30 @@ export class Columna {
       fila.appendChild(this.botonBusqueda);
     }
 
+    this.botonAncho = document.createElement('button');
+    this.botonAncho.type = 'button';
+    this.botonAncho.className = 'columna-icono columna-ancho';
+    this.botonAncho.textContent = '↔';
+    this.botonAncho.title = 'Cambiar ancho de columna';
+    this.botonAncho.setAttribute('aria-label', 'Cambiar ancho de columna');
+    this.botonAncho.addEventListener('click', () => this.ciclarAncho());
+    fila.appendChild(this.botonAncho);
+
+    this.botonColapsar = document.createElement('button');
+    this.botonColapsar.type = 'button';
+    this.botonColapsar.className = 'columna-icono columna-colapsar';
+    this.botonColapsar.textContent = '−';
+    this.botonColapsar.title = 'Contraer columna';
+    this.botonColapsar.setAttribute('aria-label', `Contraer columna ${this.columna.titulo}`);
+    this.botonColapsar.addEventListener('click', () => this.alternarColapsada());
+    fila.appendChild(this.botonColapsar);
+
     const borrar = document.createElement('button');
+    borrar.type = 'button';
     borrar.className = 'columna-icono';
-    borrar.textContent = '✕';
+    borrar.textContent = '×';
     borrar.title = 'Quitar columna';
+    borrar.setAttribute('aria-label', `Quitar columna ${this.columna.titulo}`);
     borrar.addEventListener('click', () => this.alBorrar(this.columna.id));
     fila.appendChild(borrar);
 
@@ -140,6 +199,79 @@ export class Columna {
     this.cabecera = cabecera;
 
     return cabecera;
+  }
+
+  guardarEstadoUi() {
+    if (this.acciones.alCambiarEstadoUi) {
+      this.acciones.alCambiarEstadoUi(this.columna.id, { ...this.estadoUi });
+    }
+  }
+
+  aplicarEstadoUi() {
+    if (!this.elemento) return;
+    const colapsada = this.estadoUi.colapsada === true;
+    const expandida = this.vivo && this.estadoUi.expandida === true && !colapsada;
+    this.elemento.classList.toggle('columna--colapsada', colapsada);
+    this.elemento.classList.toggle('columna--expandida', expandida);
+    this.elemento.style.setProperty('--ancho-columna-actual', `${this.estadoUi.ancho}px`);
+    this.elemento.title = colapsada ? this.columna.titulo : '';
+    if (this.botonExpandir) {
+      this.botonExpandir.classList.toggle('activa', expandida);
+      this.botonExpandir.setAttribute('aria-pressed', String(expandida));
+      this.botonExpandir.title = expandida
+        ? 'Restaurar el ancho de la WebView'
+        : 'Usar el espacio disponible';
+      this.botonExpandir.setAttribute(
+        'aria-label',
+        expandida ? 'Restaurar el ancho de la WebView' : 'Usar el espacio disponible',
+      );
+    }
+    if (this.botonColapsar) {
+      this.botonColapsar.textContent = colapsada ? '+' : '−';
+      this.botonColapsar.title = colapsada ? 'Expandir columna' : 'Contraer columna';
+      this.botonColapsar.setAttribute(
+        'aria-label',
+        `${colapsada ? 'Expandir' : 'Contraer'} columna ${this.columna.titulo}`,
+      );
+    }
+  }
+
+  alternarColapsada() {
+    this.estadoUi.colapsada = !this.estadoUi.colapsada;
+    if (this.estadoUi.colapsada) this.estadoUi.expandida = false;
+    this.aplicarEstadoUi();
+    this.guardarEstadoUi();
+  }
+
+  alternarExpandida() {
+    if (!this.vivo) return;
+    const expandida = !this.estadoUi.expandida;
+    if (this.acciones.alExpandirWebview) {
+      this.acciones.alExpandirWebview(this.columna.id, expandida);
+      return;
+    }
+    this.estadoUi.expandida = expandida;
+    if (expandida) this.estadoUi.colapsada = false;
+    this.aplicarEstadoUi();
+    this.guardarEstadoUi();
+  }
+
+  ciclarAncho() {
+    const anchos = [320, 380, 460, 540];
+    const actual = anchos.findIndex((ancho) => ancho >= this.estadoUi.ancho);
+    this.estadoUi.ancho = anchos[(actual + 1 + anchos.length) % anchos.length];
+    this.aplicarEstadoUi();
+    this.guardarEstadoUi();
+  }
+
+  setFiltrosLocales(filtros) {
+    this.filtrosLocales = filtros ?? {};
+    if (!this.vivo) this.refrescar().catch((error) => console.error('[ui] filtro local:', error));
+  }
+
+  setCosechaPausada(pausada) {
+    this.cosechaPausada = pausada === true;
+    this.pintarVisor();
   }
 
   crearWebview() {
@@ -263,6 +395,7 @@ export class Columna {
     this.elemento.classList.toggle('columna--principal', esPrincipal);
     if (this.botonPrincipal) {
       this.botonPrincipal.classList.toggle('activa', esPrincipal);
+      this.botonPrincipal.setAttribute('aria-pressed', String(esPrincipal));
       this.botonPrincipal.title = esPrincipal
         ? 'Es la columna principal'
         : 'Fijar como columna principal';
@@ -281,6 +414,7 @@ export class Columna {
       punto.className = 'punto punto--vivo';
       this.visor.appendChild(punto);
       this.visor.append(' En vivo');
+      this.completarVisor();
       return;
     }
 
@@ -291,20 +425,24 @@ export class Columna {
       punto.className = 'punto punto--ok';
       this.visor.appendChild(punto);
       this.visor.append(' Guardados localmente');
+      this.completarVisor();
       return;
     }
 
     let clasePunto = 'punto--espera';
     let texto;
 
-    if (this.fase === 'cosechando') {
+    if (this.cosechaPausada) {
+      clasePunto = 'punto--espera';
+      texto = 'Cosecha pausada';
+    } else if (this.fase === 'cosechando') {
       clasePunto = 'punto--cosechando';
       texto = 'Actualizando…';
     } else if (this.actualizadaEn > 0) {
       clasePunto = 'punto--ok';
       texto = `Actualizada ${hace(this.actualizadaEn)}`;
     } else {
-      texto = `Sin actualizar aún · cada ~${window.config.cicloMinutos} min`;
+      texto = `Sin actualizar aún, cada ~${window.config.cicloMinutos} min`;
     }
 
     this.visor.innerHTML = '';
@@ -312,6 +450,28 @@ export class Columna {
     punto.className = `punto ${clasePunto}`;
     this.visor.appendChild(punto);
     this.visor.append(' ' + texto);
+    this.completarVisor();
+  }
+
+  completarVisor() {
+    if (this.noLeidos > 0 && !this.vivo) {
+      const nuevos = document.createElement('button');
+      nuevos.type = 'button';
+      nuevos.className = 'columna-nuevos';
+      nuevos.textContent = `${this.noLeidos} nuevos`;
+      nuevos.title = 'Ir al inicio y marcar como leídos';
+      nuevos.addEventListener('click', () => {
+        this.lista.scrollTo({ top: 0, behavior: 'smooth' });
+        this.marcarLeido();
+      });
+      this.visor.appendChild(nuevos);
+    }
+    if (this.ocultosPorFiltro > 0) {
+      const ocultos = document.createElement('span');
+      ocultos.className = 'columna-filtrados';
+      ocultos.textContent = `${this.ocultosPorFiltro} ocultos`;
+      this.visor.appendChild(ocultos);
+    }
   }
 
   /** Recibe un cambio de estado desde main. */
@@ -335,30 +495,76 @@ export class Columna {
     if (this.vivo) return; // las webviews se refrescan solas
 
     // La columna de guardados sale de otra consulta; el resto, de su columna.
-    const tweets = this.esGuardados
+    const recibidos = this.esGuardados
       ? await window.api.tweetsGuardados()
       : await window.api.tweetsDeColumna(this.columna.id);
 
+    if (this.estadoUi.leidoHasta === 0 && recibidos.length > 0) {
+      this.estadoUi.leidoHasta = recibidos[0].creadoEn;
+      this.guardarEstadoUi();
+    }
+
+    this.tweetsActuales = recibidos;
+    const tweets = recibidos.filter((tweet) => this.pasaFiltros(tweet));
+    this.ocultosPorFiltro = recibidos.length - tweets.length;
+    this.noLeidos = tweets.filter((tweet) => tweet.creadoEn > this.estadoUi.leidoHasta).length;
+
     // Si el usuario esta leyendo abajo, no le movemos el scroll de golpe.
     const estabaArriba = this.lista.scrollTop < 50;
+    if (estabaArriba && this.noLeidos > 0) this.marcarLeido(false);
 
     this.lista.replaceChildren();
 
     if (tweets.length === 0) {
       const vacio = document.createElement('p');
       vacio.className = 'columna-vacia';
-      vacio.textContent = this.esGuardados
-        ? 'No has guardado ningún tweet aún. Pulsa la estrella de un tweet.'
-        : 'Todavía no hay tweets. El cosechador los traerá en unos segundos.';
+      vacio.textContent = recibidos.length > 0
+        ? 'Todos los posts de esta columna están ocultos por los filtros locales.'
+        : this.esGuardados
+          ? 'No has guardado ningún tweet aún. Pulsa la estrella de un tweet.'
+          : 'Todavía no hay tweets. El cosechador los traerá en unos segundos.';
       this.lista.appendChild(vacio);
+      this.pintarVisor();
       return;
     }
 
-    for (const tweet of tweets) {
+    for (const [indice, tweet] of tweets.entries()) {
       this.lista.appendChild(crearTweet(tweet, this.acciones));
+      if (this.noLeidos > 0 && indice + 1 === this.noLeidos) {
+        const marca = document.createElement('div');
+        marca.className = 'marcador-lectura';
+        marca.textContent = 'Hasta aquí habías leído';
+        this.lista.appendChild(marca);
+      }
     }
 
     if (estabaArriba) this.lista.scrollTop = 0;
+    this.pintarVisor();
+  }
+
+  pasaFiltros(tweet) {
+    const filtros = this.filtrosLocales ?? {};
+    const texto = String(tweet.texto ?? '').toLocaleLowerCase('es');
+    const handle = String(tweet.autor?.handle ?? '').toLocaleLowerCase('es');
+    const palabras = filtros.palabras ?? [];
+    const usuarios = filtros.usuarios ?? [];
+
+    if (palabras.some((palabra) => texto.includes(String(palabra).toLocaleLowerCase('es')))) return false;
+    if (usuarios.some((usuario) => handle === String(usuario).replace(/^@/, '').toLocaleLowerCase('es'))) return false;
+    if (filtros.ocultarRetweets && /^rt\s+@/i.test(tweet.texto ?? '')) return false;
+    if (filtros.ocultarMedia && (tweet.media?.length ?? 0) > 0) return false;
+    return true;
+  }
+
+  marcarLeido(repintar = true) {
+    const masReciente = this.tweetsActuales[0]?.creadoEn ?? 0;
+    if (masReciente > this.estadoUi.leidoHasta) {
+      this.estadoUi.leidoHasta = masReciente;
+      this.guardarEstadoUi();
+    }
+    this.noLeidos = 0;
+    if (repintar) this.refrescar().catch((error) => console.error('[ui] marcar leído:', error));
+    else this.pintarVisor();
   }
 
   destruir() {

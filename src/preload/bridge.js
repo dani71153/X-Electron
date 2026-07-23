@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('api', {
   estado: () => ipcRenderer.invoke(CANALES.ESTADO_APP),
   leerAjustes: () => ipcRenderer.invoke(CANALES.AJUSTES_LEER),
   guardarAjustes: (ajustes) => ipcRenderer.invoke(CANALES.AJUSTES_GUARDAR, ajustes),
+  pausarCosecha: (pausada) => ipcRenderer.invoke(CANALES.COSECHA_PAUSAR, pausada),
+  exportarConfiguracion: () => ipcRenderer.invoke(CANALES.CONFIG_EXPORTAR),
+  importarConfiguracion: () => ipcRenderer.invoke(CANALES.CONFIG_IMPORTAR),
 
   /** Se llama cuando una columna recibe tweets nuevos. Devuelve como desuscribirse. */
   alActualizarColumna: (callback) => {
@@ -62,5 +65,12 @@ contextBridge.exposeInMainWorld('api', {
     const manejador = (_evento, datos) => callback(datos);
     ipcRenderer.on(CANALES.ESTADO_CAMBIADO, manejador);
     return () => ipcRenderer.removeListener(CANALES.ESTADO_CAMBIADO, manejador);
+  },
+
+  /** Recibe atajos capturados incluso cuando el foco esta dentro de una webview. */
+  alAtajo: (callback) => {
+    const manejador = (_evento, accion) => callback(accion);
+    ipcRenderer.on(CANALES.ATAJO_EJECUTAR, manejador);
+    return () => ipcRenderer.removeListener(CANALES.ATAJO_EJECUTAR, manejador);
   },
 });

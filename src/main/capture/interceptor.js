@@ -16,6 +16,14 @@ const { AJUSTES } = require('../../../config/settings');
 // 429: demasiadas peticiones. 401/403: sesion invalida o bloqueada.
 const CODIGOS_DE_FRENO = [401, 403, 429];
 
+// Los cosechadores solo necesitan el JSON de GraphQL. Evitar fotos y video
+// reduce decodificacion, cache y superficies graficas en sus renderers ocultos.
+const RECURSOS_PESADOS_DE_X = [
+  '*://pbs.twimg.com/media/*',
+  '*://pbs.twimg.com/profile_images/*',
+  '*://video.twimg.com/*',
+];
+
 /**
  * Engancha el interceptor a un webContents.
  *
@@ -26,7 +34,10 @@ const CODIGOS_DE_FRENO = [401, 403, 429];
  * @param {(json: object) => void} [manejadores.alRecibirListas] Opcional: JSON con posibles listas
  * @returns {() => void} Funcion para desenganchar
  */
-function engancharInterceptor(webContents, { alRecibirTimeline, alFrenar, alRecibirListas }) {
+function engancharInterceptor(
+  webContents,
+  { alRecibirTimeline, alFrenar, alRecibirListas, bloquearRecursosPesados = false },
+) {
   const depurador = webContents.debugger;
 
   try {
@@ -41,6 +52,13 @@ function engancharInterceptor(webContents, { alRecibirTimeline, alFrenar, alReci
   const peticiones = new Map();
 
   const alMensaje = async (_evento, metodo, params) => {
+    // responseReceived puede existir aunque la descarga falle despues. Sin
+    // limpiar aqui, ese requestId quedaria retenido hasta destruir la ventana.
+    if (metodo === 'Network.loadingFailed') {
+      peticiones.delete(params.requestId);
+      return;
+    }
+
     if (metodo === 'Network.responseReceived') {
       const url = params.response?.url ?? '';
       if (esLlamadaGraphQL(url)) {
@@ -112,9 +130,23 @@ function engancharInterceptor(webContents, { alRecibirTimeline, alFrenar, alReci
   };
 
   depurador.on('message', alMensaje);
-  depurador.sendCommand('Network.enable');
+
+  // Los comandos CDP son asincronos. Los preparamos en orden y capturamos el
+  // error para que una incompatibilidad de Chromium no mate la cosecha.
+  depurador
+    .sendCommand('Network.enable')
+    .then(() => {
+      if (!bloquearRecursosPesados) return null;
+      return depurador.sendCommand('Network.setBlockedURLs', {
+        urls: RECURSOS_PESADOS_DE_X,
+      });
+    })
+    .catch((error) => {
+      console.warn('[interceptor] no se pudo preparar Network:', error.message);
+    });
 
   return () => {
+    peticiones.clear();
     depurador.removeListener('message', alMensaje);
     if (depurador.isAttached()) depurador.detach();
   };

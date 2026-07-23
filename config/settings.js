@@ -60,6 +60,21 @@ const AJUSTES = {
   AJUSTES_POR_DEFECTO: {
     // Pulsar solo el boton "Mostrar N posts" en las columnas en vivo.
     autoMostrarPostsNuevos: false,
+    // La barra se puede ocultar para ganar altura; queda un control de retorno.
+    mostrarBarraHerramientas: true,
+    // Pausar cierra los cosechadores ocultos hasta que el usuario reanude.
+    cosechaPausada: false,
+    densidad: 'comoda',
+    anchoColumna: 380,
+    filtrosLocales: {
+      palabras: [],
+      usuarios: [],
+      ocultarRetweets: false,
+      ocultarMedia: false,
+    },
+    estadoColumnas: {},
+    espaciosTrabajo: [],
+    espacioActivo: null,
   },
 
   // Cada cuanto mira una columna en vivo si ha aparecido el boton (ms).

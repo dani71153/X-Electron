@@ -7,7 +7,7 @@ const { app, BrowserWindow } = require('electron');
 const { CANALES } = require('../shared/channels');
 const { abrirBaseDeDatos, cerrarBaseDeDatos } = require('./db/database');
 const consultas = require('./db/queries');
-const { registrarIpc } = require('./ipc');
+const { registrarIpc, ajustesDeUsuario } = require('./ipc');
 const { crearVentanaPrincipal } = require('./window');
 const { GestorDeCosecha } = require('./harvest/harvester');
 const { cosecharListas } = require('./harvest/listas');
@@ -15,6 +15,8 @@ const { aplicarUserAgentDeChrome } = require('./session');
 
 let ventanaPrincipal = null;
 let gestorDeCosecha = null;
+let detenerMonitorMemoria = null;
+let cosechaPausada = false;
 
 // Una sola instancia. Dos copias sobre la misma particion persist:x pelean por
 // los mismos archivos de cookies y cache (los errores "Acceso denegado" y "Unable
@@ -67,7 +69,20 @@ function avisarEstadoColumna(columnaId, estado) {
 
 /** Relee las columnas de la base de datos y reinicia la cosecha. */
 function reconfigurarCosecha() {
+  if (cosechaPausada) {
+    gestorDeCosecha.detener();
+    return Promise.resolve();
+  }
   return gestorDeCosecha.configurar(consultas.listarColumnas());
+}
+
+async function cambiarPausaCosecha(pausada) {
+  cosechaPausada = pausada;
+  if (pausada) {
+    gestorDeCosecha.detener();
+    return;
+  }
+  await gestorDeCosecha.configurar(consultas.listarColumnas());
 }
 
 app.whenReady().then(() => {
@@ -77,6 +92,7 @@ app.whenReady().then(() => {
 
   abrirBaseDeDatos(app.getPath('userData'));
   crearColumnasPorDefectoSiHaceFalta();
+  cosechaPausada = ajustesDeUsuario().cosechaPausada;
 
   gestorDeCosecha = new GestorDeCosecha(
     avisarColumnaActualizada,
@@ -84,8 +100,13 @@ app.whenReady().then(() => {
     avisarEstadoColumna,
   );
 
-  registrarIpc(reconfigurarCosecha);
+  registrarIpc(reconfigurarCosecha, cambiarPausaCosecha);
   ventanaPrincipal = crearVentanaPrincipal();
+
+  if (process.argv.includes('--log-memory')) {
+    const { iniciarMonitorMemoria } = require('./diagnostics/memory');
+    detenerMonitorMemoria = iniciarMonitorMemoria();
+  }
 
   // Al cerrar el tablero, cerramos la app entera.
   //
@@ -119,6 +140,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  if (detenerMonitorMemoria) detenerMonitorMemoria();
   if (gestorDeCosecha) gestorDeCosecha.detener();
   cerrarBaseDeDatos();
 });

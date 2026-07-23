@@ -53,7 +53,7 @@ export class ArrastreDeColumnas {
     if (evento.button !== 0) return; // solo boton izquierdo
     if (this.actual) return; // ya hay un arrastre en curso
 
-    // La cabecera lleva botones (📌, ⟳, ✕). Si el clic es en uno, es un clic
+    // La cabecera lleva botones de acción. Si el clic es en uno, es un clic
     // normal, no un arrastre.
     if (evento.target.closest('button')) return;
 

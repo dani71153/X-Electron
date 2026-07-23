@@ -4,8 +4,51 @@ const fs = require('fs');
 const path = require('path');
 const { BrowserWindow } = require('electron');
 const { AJUSTES } = require('../../config/settings');
+const { CANALES } = require('../shared/channels');
 
 const RUTA_CSS_X = path.join(__dirname, '..', 'preload', 'x-styles.css');
+
+/** Traduce una tecla de Electron a una accion del tablero. */
+function accionDeAtajo(entrada) {
+  if (entrada.type !== 'keyDown' || entrada.isAutoRepeat) return null;
+
+  const tecla = entrada.key.toLowerCase();
+  if (entrada.alt && !entrada.control && !entrada.meta) {
+    if (tecla === 'arrowleft') return 'columna-anterior';
+    if (tecla === 'arrowright') return 'columna-siguiente';
+    if (tecla === 'home') return 'primera-columna';
+    if (tecla === 'end') return 'ultima-columna';
+    return null;
+  }
+
+  if (!(entrada.control || entrada.meta) || entrada.alt) return null;
+  if (!entrada.shift && tecla === 'n') return 'nueva-columna';
+  if (!entrada.shift && tecla === 'r') return 'refrescar-columnas';
+  if (!entrada.shift && tecla === ',') return 'abrir-opciones';
+  if (!entrada.shift && tecla === 'k') return 'abrir-paleta';
+  if (entrada.shift && tecla === 'b') return 'alternar-barra';
+  return null;
+}
+
+/**
+ * Captura atajos tanto en nuestro renderer como dentro de las webviews de X.
+ * Los invitados no propagan keydown al documento anfitrion, por eso se hace
+ * desde webContents y se envia una accion pequena por el puente seguro.
+ */
+function registrarAtajosDelTablero(ventana) {
+  const alTeclado = (evento, entrada) => {
+    const accion = accionDeAtajo(entrada);
+    if (!accion) return;
+
+    evento.preventDefault();
+    if (!ventana.isDestroyed()) ventana.webContents.send(CANALES.ATAJO_EJECUTAR, accion);
+  };
+
+  ventana.webContents.on('before-input-event', alTeclado);
+  ventana.webContents.on('did-attach-webview', (_evento, invitado) => {
+    invitado.on('before-input-event', alTeclado);
+  });
+}
 
 /**
  * Mete nuestro CSS dentro de la pagina de X.
@@ -26,7 +69,7 @@ function crearVentanaPrincipal() {
   const ventana = new BrowserWindow({
     width: 1400,
     height: 900,
-    backgroundColor: '#15202b',
+    backgroundColor: '#0b0e12',
     title: 'X-Electron',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'bridge.js'),
@@ -37,6 +80,8 @@ function crearVentanaPrincipal() {
       webviewTag: true,
     },
   });
+
+  registrarAtajosDelTablero(ventana);
 
   ventana.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
@@ -92,4 +137,4 @@ function abrirVentanaX(url = 'https://x.com/home', alCerrar = null) {
   return ventanaX;
 }
 
-module.exports = { crearVentanaPrincipal, abrirVentanaX };
+module.exports = { crearVentanaPrincipal, abrirVentanaX, accionDeAtajo };

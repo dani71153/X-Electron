@@ -47,6 +47,7 @@ async function cosecharListas() {
   const desenganchar = engancharInterceptor(ventana.webContents, {
     alRecibirTimeline: () => {},
     alFrenar: () => {},
+    bloquearRecursosPesados: true,
     alRecibirListas: (json) => {
       for (const lista of extraerListas(json)) {
         consultas.guardarLista(lista);

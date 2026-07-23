@@ -69,6 +69,7 @@ class Cosechador {
     this.desenganchar = null;
     this.cargadaEn = 0; // cuando se cargo la pagina por ultima vez
     this.sesionInvalida = false;
+    this.ultimoUsoEn = 0;
   }
 
   /** Crea la ventana si no existe. No carga nada todavia. */
@@ -87,15 +88,34 @@ class Cosechador {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: true,
-        // Sin esto Chrome congela el temporizador de las ventanas ocultas.
-        backgroundThrottling: false,
+        // Se activa solo mientras esta columna se cosecha. El resto del tiempo
+        // Chromium puede frenar timers y trabajo grafico de esta ventana oculta.
+        backgroundThrottling: true,
       },
     });
 
     this.desenganchar = engancharInterceptor(this.ventana.webContents, {
       alRecibirTimeline: (datos) => this.guardarTimeline(datos),
       alFrenar: (datos) => this.alFrenar(datos),
+      bloquearRecursosPesados: true,
     });
+  }
+
+  tieneVentanaViva() {
+    return Boolean(this.ventana && !this.ventana.isDestroyed());
+  }
+
+  /** Despierta Chromium solo durante el trabajo efectivo de esta columna. */
+  activar() {
+    if (!this.tieneVentanaViva()) return;
+    this.ventana.webContents.setBackgroundThrottling(false);
+  }
+
+  /** Permite que Chromium reduzca timers, pintura y uso de CPU/RAM en espera. */
+  hibernar() {
+    if (!this.tieneVentanaViva()) return;
+    this.ultimoUsoEn = Date.now();
+    this.ventana.webContents.setBackgroundThrottling(true);
   }
 
   /** ¿Hay que volver a cargar la pagina, o vale con la que ya esta? */
@@ -171,23 +191,28 @@ class Cosechador {
    */
   async ciclo() {
     this.asegurarVentana();
+    this.activar();
 
-    if (this.necesitaCargar()) {
-      const cargo = await this.cargar();
-      if (!cargo) return;
+    try {
+      if (this.necesitaCargar()) {
+        const cargo = await this.cargar();
+        if (!cargo) return;
+      }
+
+      for (let i = 0; i < AJUSTES.SCROLLS_POR_CICLO; i++) {
+        if (!this.ventana || this.ventana.isDestroyed()) return;
+
+        // Si ya no hay mas contenido, insistir solo genera peticiones inutiles.
+        if (await this.estaAlFinal()) break;
+
+        await this.bajar();
+        await esperar(conJitter(AJUSTES.INTERVALO_SCROLL_MS));
+      }
+
+      await this.volverArriba();
+    } finally {
+      this.hibernar();
     }
-
-    for (let i = 0; i < AJUSTES.SCROLLS_POR_CICLO; i++) {
-      if (!this.ventana || this.ventana.isDestroyed()) return;
-
-      // Si ya no hay mas contenido, insistir solo genera peticiones inutiles.
-      if (await this.estaAlFinal()) break;
-
-      await this.bajar();
-      await esperar(conJitter(AJUSTES.INTERVALO_SCROLL_MS));
-    }
-
-    await this.volverArriba();
   }
 
   cerrar() {
@@ -369,6 +394,9 @@ class GestorDeCosecha {
         // Avisamos a la interfaz de que esta columna se esta actualizando ahora.
         this.alEstadoColumna(columnaId, { fase: 'cosechando' });
 
+        // El limite se aplica ANTES de abrir otra ventana. Antes se comprobaba
+        // al final de la vuelta, cuando el pico ya podia ser una por columna.
+        this.asegurarCapacidadPara(cosechador);
         await cosechador.ciclo();
         if (!this.esVigente(generacion)) return;
 
@@ -383,6 +411,7 @@ class GestorDeCosecha {
         this.alEstadoColumna(columnaId, { fase: 'ok', actualizadaEn: Date.now() });
 
         this.exito();
+        this.liberarVentanaRotatoria(cosechador);
         await this.dormir(generacion, conJitter(AJUSTES.PAUSA_ENTRE_COLUMNAS_MS));
       }
 
@@ -391,11 +420,46 @@ class GestorDeCosecha {
     }
   }
 
+  /**
+   * Conserva calientes hasta MAX-1 columnas y deja una plaza rotatoria para el
+   * resto. Asi nunca superamos el limite y tampoco recargamos todas las paginas
+   * en cada vuelta (lo que aumentaria las rafagas de peticiones a X).
+   */
+  cosechadoresPersistentes() {
+    const maximo = Math.max(1, AJUSTES.MAX_VENTANAS_VIVAS);
+    const cantidad = this.cosechadores.size <= maximo ? this.cosechadores.size : maximo - 1;
+    return new Set([...this.cosechadores.values()].slice(0, cantidad));
+  }
+
+  asegurarCapacidadPara(objetivo) {
+    if (objetivo.tieneVentanaViva()) return;
+
+    const maximo = Math.max(1, AJUSTES.MAX_VENTANAS_VIVAS);
+    const vivos = [...this.cosechadores.values()].filter((c) => c.tieneVentanaViva());
+    if (vivos.length < maximo) return;
+
+    const persistentes = this.cosechadoresPersistentes();
+    const candidato =
+      vivos.find((c) => c !== objetivo && !persistentes.has(c)) ??
+      [...vivos]
+        .filter((c) => c !== objetivo)
+        .sort((a, b) => a.ultimoUsoEn - b.ultimoUsoEn)[0];
+
+    if (candidato) candidato.cerrar();
+  }
+
+  liberarVentanaRotatoria(cosechador) {
+    const maximo = Math.max(1, AJUSTES.MAX_VENTANAS_VIVAS);
+    if (this.cosechadores.size <= maximo) return;
+    if (!this.cosechadoresPersistentes().has(cosechador)) cosechador.cerrar();
+  }
+
   /** Si hay mas ventanas vivas de la cuenta, cierra las de las ultimas columnas. */
   cerrarVentanasSobrantes() {
-    const vivos = [...this.cosechadores.values()].filter((c) => c.ventana);
+    const maximo = Math.max(1, AJUSTES.MAX_VENTANAS_VIVAS);
+    const vivos = [...this.cosechadores.values()].filter((c) => c.tieneVentanaViva());
 
-    for (let i = AJUSTES.MAX_VENTANAS_VIVAS; i < vivos.length; i++) {
+    for (let i = maximo; i < vivos.length; i++) {
       vivos[i].cerrar();
     }
   }

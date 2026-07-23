@@ -248,9 +248,15 @@ Hecho: visor de estado por columna (cabecera con "actualizada hace X"), columnas
 vivo (webview que embebe x.com), guardar tweets localmente (estrella + columna
 "Guardados"), exportar el JSON crudo de un tweet, abrir un tweet en la columna en
 vivo principal (pin 📌), y añadir búsquedas desde la webview con orden configurable.
+También hay atajos para crear y refrescar columnas, abrir opciones y ocultar la
+barra de herramientas incluso con el foco dentro de una columna en vivo.
+QoL añadido: paleta de comandos, navegación entre columnas, columnas contraíbles
+y redimensionables, WebView ajustable al espacio libre del tablero, marcador de
+lectura, filtros locales, densidad configurable,
+deshacer al borrar, pausa real de cosecha, espacios de trabajo y copia/restauración
+de la configuración en JSON.
 Falta: listas del usuario con un click (pendiente de reconocer el endpoint), temas,
-densidad, filtros por palabra o autor, marcar como leído, atajos de teclado,
-scroll infinito hacia atrás en el histórico, reordenar columnas arrastrando.
+scroll infinito hacia atrás en el histórico.
 
 **Fase 6 — Interacción** ⬜ pendiente de decisión
 Dar like o responder desde nuestra columna, delegando la acción a la ventana de X.
@@ -363,8 +369,12 @@ robot, X puede limitar (`429`) o bloquear la cuenta. Reglas, todas en
 ```bash
 npm install
 npm run dev     # con DevTools abiertas y logs de endpoints
+npm run dev:memory # muestra RAM/CPU por proceso cada 15 segundos
 npm start       # normal
 ```
+
+El modo `dev:memory` permite distinguir la ventana principal de los renderers
+ocultos y comprobar cuanta memoria privada libera cada limite de cosechadores.
 
 **La primera vez hay que iniciar sesión:** pulsa *Abrir X.com*, entra con tu cuenta
 y cierra esa ventana. La sesión queda guardada en la partición `persist:x`, así que

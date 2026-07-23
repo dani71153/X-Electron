@@ -17,6 +17,9 @@ const CANALES = {
   X_LIMPIAR_SESION: 'x:limpiarSesion',
   AJUSTES_LEER: 'ajustes:leer',
   AJUSTES_GUARDAR: 'ajustes:guardar',
+  COSECHA_PAUSAR: 'cosecha:pausar',
+  CONFIG_EXPORTAR: 'config:exportar',
+  CONFIG_IMPORTAR: 'config:importar',
 
   // Del tablero HACIA dentro de una webview de X (webview.send).
   // Lo escucha src/preload/x-inject.js.
@@ -27,6 +30,7 @@ const CANALES = {
   COLUMNA_ACTUALIZADA: 'columna:actualizada',
   COLUMNA_ESTADO: 'columna:estado',
   ESTADO_CAMBIADO: 'app:estadoCambiado',
+  ATAJO_EJECUTAR: 'app:ejecutarAtajo',
 };
 
 module.exports = { CANALES };

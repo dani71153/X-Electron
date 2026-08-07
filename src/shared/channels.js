@@ -4,6 +4,7 @@ const CANALES = {
   // El renderer pregunta, main responde (invoke/handle)
   COLUMNAS_LISTAR: 'columnas:listar',
   COLUMNAS_CREAR: 'columnas:crear',
+  COLUMNAS_GUARDAR_LOTE: 'columnas:guardarLote',
   COLUMNAS_BORRAR: 'columnas:borrar',
   COLUMNAS_REORDENAR: 'columnas:reordenar',
   TWEETS_DE_COLUMNA: 'tweets:deColumna',
@@ -21,9 +22,9 @@ const CANALES = {
   CONFIG_EXPORTAR: 'config:exportar',
   CONFIG_IMPORTAR: 'config:importar',
 
-  // Del tablero HACIA dentro de una webview de X (webview.send).
-  // Lo escucha src/preload/x-inject.js.
-  X_AUTO_MOSTRAR_POSTS: 'x:autoMostrarPosts',
+  // Del tablero/main HACIA una vista visible de X.
+  // Lo escucha src/preload/x-inject.js; los cosechadores no reciben este canal.
+  X_CONFIGURAR_MODS: 'x:configurarMods',
   ESTADO_APP: 'app:estado',
 
   // Main avisa al renderer (send/on)

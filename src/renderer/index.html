@@ -89,9 +89,13 @@
               </span>
               <span class="menu-accion-pista">Comportamiento de las columnas en vivo</span>
             </button>
-            <button id="btn-guardar-espacio" class="menu-accion" type="button">
+            <button id="btn-guardar-espacio-actual" class="menu-accion" type="button">
               <span class="menu-accion-titulo">Guardar espacio actual</span>
-              <span class="menu-accion-pista">Crea una vista con las columnas visibles</span>
+              <span class="menu-accion-pista">Guarda una copia de las columnas visibles y su orden</span>
+            </button>
+            <button id="btn-crear-espacio" class="menu-accion" type="button">
+              <span class="menu-accion-titulo">Crear espacio</span>
+              <span class="menu-accion-pista">Construye uno desde cero y define su contenido</span>
             </button>
             <button id="btn-exportar-config" class="menu-accion" type="button">
               <span class="menu-accion-titulo">Exportar configuración</span>
@@ -100,6 +104,18 @@
             <button id="btn-importar-config" class="menu-accion" type="button">
               <span class="menu-accion-titulo">Importar configuración</span>
               <span class="menu-accion-pista">Restaura una copia JSON de X-Electron</span>
+            </button>
+            <button
+              id="btn-plegar-cabeceras"
+              class="menu-accion"
+              type="button"
+              aria-keyshortcuts="Control+Shift+H"
+            >
+              <span class="menu-accion-linea">
+                <span class="menu-accion-titulo">Plegar cabeceras</span>
+                <kbd class="atajo">Ctrl+Shift+H</kbd>
+              </span>
+              <span class="menu-accion-pista">Deja una franja fina; vuelven al pasar el ratón por encima</span>
             </button>
             <button
               id="btn-ocultar-barra"
@@ -257,13 +273,15 @@
           </div>
         </header>
 
-        <label class="checkbox checkbox--panel">
-          <input id="campo-auto-mostrar" type="checkbox" />
-          <span>Mostrar posts nuevos automáticamente</span>
-          <small>
-            Pulsa automáticamente “Mostrar N posts” cuando aparece. La comprobación usa un intervalo variable cercano a 45 segundos.
-          </small>
-        </label>
+        <section class="opciones-seccion opciones-seccion--mods" aria-labelledby="titulo-mods-x">
+          <header>
+            <h3 id="titulo-mods-x">Mods de X</h3>
+            <p>
+              Mejoras opcionales para las columnas en vivo y la ventana original. No afectan a los cosechadores.
+            </p>
+          </header>
+          <div id="lista-mods-x" class="lista-mods-x"></div>
+        </section>
 
         <div class="opciones-grid">
           <label>
@@ -311,7 +329,7 @@
           <header class="opciones-seccion-cabecera">
             <div>
               <h3 id="titulo-espacios">Espacios de trabajo</h3>
-              <p>Vistas guardadas de tus columnas actuales.</p>
+              <p>Tableros guardados con sus propias columnas, contenido y orden.</p>
             </div>
             <button id="btn-nuevo-espacio-opciones" class="boton boton--compacto" type="button">Nuevo</button>
           </header>
@@ -328,6 +346,7 @@
             <div><dt>Refrescar columnas</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>R</kbd></dd></div>
             <div><dt>Abrir opciones</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>,</kbd></dd></div>
             <div><dt>Mostrar u ocultar barra</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>B</kbd></dd></div>
+            <div><dt>Plegar cabeceras de columna</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>H</kbd></dd></div>
             <div><dt>Paleta de comandos</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd></dd></div>
             <div><dt>Columna anterior/siguiente</dt><dd><kbd>Alt</kbd><span>+</span><kbd>←</kbd><span>/</span><kbd>→</kbd></dd></div>
             <div><dt>Primera/última columna</dt><dd><kbd>Alt</kbd><span>+</span><kbd>Home</kbd><span>/</span><kbd>End</kbd></dd></div>
@@ -351,22 +370,84 @@
       </form>
     </dialog>
 
+    <dialog id="dialogo-guardar-espacio-actual" aria-labelledby="titulo-guardar-espacio-actual">
+      <form id="form-guardar-espacio-actual" method="dialog">
+        <header class="dialogo-cabecera">
+          <span class="dialogo-marca" aria-hidden="true">G</span>
+          <div>
+            <h2 id="titulo-guardar-espacio-actual">Guardar espacio actual</h2>
+            <p>Creará una copia con las columnas que ves ahora y exactamente en ese orden.</p>
+          </div>
+        </header>
+        <label>
+          Nombre
+          <input
+            id="campo-nombre-espacio-actual"
+            type="text"
+            required
+            maxlength="50"
+            autocomplete="off"
+            placeholder="Mi tablero actual"
+          />
+        </label>
+        <p id="error-espacio-actual" class="error" role="alert" hidden></p>
+        <div class="dialogo-acciones">
+          <button id="btn-cancelar-espacio-actual" class="boton boton--secundario" type="button">Cancelar</button>
+          <button id="btn-confirmar-espacio-actual" class="boton boton--primario" type="submit">Guardar copia</button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="dialogo-espacio" aria-labelledby="titulo-dialogo-espacio">
       <form id="form-espacio" method="dialog">
         <header class="dialogo-cabecera">
           <span class="dialogo-marca" aria-hidden="true">E</span>
           <div>
-            <h2 id="titulo-dialogo-espacio">Guardar espacio</h2>
-            <p>Conserva una vista de las columnas que están visibles ahora.</p>
+            <h2 id="titulo-dialogo-espacio">Crear espacio</h2>
+            <p id="texto-dialogo-espacio">Elige qué columnas contiene, configura sus fuentes y ordénalas.</p>
           </div>
         </header>
         <label>
           Nombre
           <input id="campo-nombre-espacio" type="text" required maxlength="50" autocomplete="off" placeholder="Seguimiento diario" />
         </label>
+
+        <section class="editor-espacio" aria-labelledby="titulo-columnas-espacio">
+          <header>
+            <div>
+              <h3 id="titulo-columnas-espacio">Columnas del espacio</h3>
+              <p>El orden de esta lista será el orden del tablero.</p>
+            </div>
+            <span class="editor-espacio-cabecera-acciones">
+              <button id="btn-actualizar-listas-espacio" class="boton boton--compacto" type="button">
+                Actualizar listas
+              </button>
+              <button id="btn-nueva-columna-espacio" class="boton boton--compacto" type="button">
+                + Nueva
+              </button>
+            </span>
+          </header>
+
+          <div class="editor-espacio-existentes">
+            <select id="selector-columna-existente" aria-label="Columna existente para añadir"></select>
+            <button id="btn-anadir-columna-existente" class="boton boton--secundario boton--compacto" type="button">
+              Añadir existente
+            </button>
+          </div>
+          <small>
+            Las columnas existentes pueden compartirse entre espacios. Si editas una, el cambio se verá donde también se utilice.
+          </small>
+
+          <div id="columnas-espacio" class="columnas-espacio"></div>
+          <p id="columnas-espacio-vacias" class="columnas-espacio-vacias" hidden>
+            Añade al menos una columna para construir el espacio.
+          </p>
+        </section>
+
+        <p id="error-espacio" class="error" role="alert" hidden></p>
         <div class="dialogo-acciones">
           <button id="btn-cancelar-espacio" class="boton boton--secundario" type="button">Cancelar</button>
-          <button class="boton boton--primario" type="submit">Guardar espacio</button>
+          <button id="btn-guardar-editor-espacio" class="boton boton--primario" type="submit">Guardar espacio</button>
         </div>
       </form>
     </dialog>

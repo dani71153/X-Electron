@@ -95,6 +95,41 @@ async function guardarVisibilidadBarra(mostrar) {
 btnOcultarBarra.addEventListener('click', () => guardarVisibilidadBarra(false));
 btnMostrarBarra.addEventListener('click', () => guardarVisibilidadBarra(true));
 
+// --- Cabeceras de columna plegadas ---
+//
+// Plegar deja solo una franja fina arriba de cada columna. La cabecera vuelve a
+// aparecer flotando cuando pasas el raton por esa franja, asi que el contenido
+// no cambia de tamano y las webviews no tienen que redimensionarse.
+
+const btnPlegarCabeceras = document.getElementById('btn-plegar-cabeceras');
+let cabecerasPlegadas = false;
+
+function aplicarPlegadoCabeceras(plegadas) {
+  cabecerasPlegadas = plegadas === true;
+  document.body.dataset.cabeceras = cabecerasPlegadas ? 'plegadas' : 'normales';
+  btnPlegarCabeceras.querySelector('.menu-accion-titulo').textContent = cabecerasPlegadas
+    ? 'Desplegar cabeceras'
+    : 'Plegar cabeceras';
+  btnPlegarCabeceras.querySelector('.menu-accion-pista').textContent = cabecerasPlegadas
+    ? 'Vuelve a mostrar el título y los botones de cada columna'
+    : 'Deja una franja fina; vuelven al pasar el ratón por encima';
+}
+
+async function guardarPlegadoCabeceras(plegadas) {
+  aplicarPlegadoCabeceras(plegadas);
+  try {
+    await window.api.guardarAjustes({ cabecerasPlegadas: plegadas });
+  } catch (error) {
+    aplicarPlegadoCabeceras(!plegadas);
+    console.error('[ui] no se pudo guardar el plegado de cabeceras:', error);
+  }
+}
+
+btnPlegarCabeceras.addEventListener('click', () => {
+  cerrarMenuMas();
+  guardarPlegadoCabeceras(!cabecerasPlegadas);
+});
+
 document.getElementById('btn-abrir-x').addEventListener('click', () => {
   cerrarMenuMas();
   window.api.abrirX();
@@ -162,9 +197,41 @@ document.addEventListener('keydown', (evento) => {
 
 const selectorEspacio = document.getElementById('selector-espacio');
 const listaEspacios = document.getElementById('lista-espacios');
+const dialogoGuardarEspacioActual = document.getElementById('dialogo-guardar-espacio-actual');
+const formularioGuardarEspacioActual = document.getElementById('form-guardar-espacio-actual');
+const campoNombreEspacioActual = document.getElementById('campo-nombre-espacio-actual');
+const errorEspacioActual = document.getElementById('error-espacio-actual');
+const btnConfirmarEspacioActual = document.getElementById('btn-confirmar-espacio-actual');
 const dialogoEspacio = document.getElementById('dialogo-espacio');
 const formularioEspacio = document.getElementById('form-espacio');
 const campoNombreEspacio = document.getElementById('campo-nombre-espacio');
+const tituloDialogoEspacio = document.getElementById('titulo-dialogo-espacio');
+const textoDialogoEspacio = document.getElementById('texto-dialogo-espacio');
+const columnasEspacio = document.getElementById('columnas-espacio');
+const columnasEspacioVacias = document.getElementById('columnas-espacio-vacias');
+const selectorColumnaExistente = document.getElementById('selector-columna-existente');
+const errorEspacio = document.getElementById('error-espacio');
+const btnGuardarEditorEspacio = document.getElementById('btn-guardar-editor-espacio');
+let espacioEditandoId = null;
+let borradoresColumnasEspacio = [];
+let contadorBorradores = 0;
+let listasEditorEspacio = [];
+
+const TIPOS_EDITOR_ESPACIO = [
+  ['home', 'Inicio'],
+  ['notifications', 'Notificaciones'],
+  ['list', 'Lista'],
+  ['user', 'Perfil'],
+  ['search', 'Búsqueda'],
+  ['saved', 'Guardados locales'],
+];
+
+const ORDENES_BUSQUEDA_EDITOR = [
+  ['live', 'Más recientes'],
+  ['top', 'Destacados'],
+  ['user', 'Personas'],
+  ['media', 'Multimedia'],
+];
 
 async function guardarAjustesUi(parcial) {
   ajustesActuales = await window.api.guardarAjustes(parcial);
@@ -188,13 +255,28 @@ function pintarEspacios() {
     const nombre = document.createElement('span');
     nombre.textContent = `${espacio.nombre} · ${espacio.columnas.length}`;
     fila.appendChild(nombre);
+
+    const acciones = document.createElement('span');
+    acciones.className = 'espacio-item-acciones';
+    const editar = document.createElement('button');
+    editar.type = 'button';
+    editar.className = 'espacio-editar';
+    editar.textContent = 'Editar';
+    editar.title = `Editar espacio ${espacio.nombre}`;
+    editar.addEventListener('click', () => {
+      abrirDialogoEspacio(espacio.id).catch((error) => mostrarMensaje(mensajeLimpio(error)));
+    });
+    acciones.appendChild(editar);
+
     const borrar = document.createElement('button');
     borrar.type = 'button';
+    borrar.className = 'espacio-borrar';
     borrar.textContent = '×';
     borrar.title = `Eliminar espacio ${espacio.nombre}`;
     borrar.setAttribute('aria-label', borrar.title);
     borrar.addEventListener('click', () => borrarEspacio(espacio.id));
-    fila.appendChild(borrar);
+    acciones.appendChild(borrar);
+    fila.appendChild(acciones);
     listaEspacios.appendChild(fila);
   }
 
@@ -211,33 +293,431 @@ selectorEspacio.addEventListener('change', () => {
   seleccionarEspacio(selectorEspacio.value).catch((error) => mostrarMensaje(mensajeLimpio(error)));
 });
 
-function abrirDialogoEspacio() {
+function abrirDialogoGuardarEspacioActual() {
+  cerrarMenuMas();
+  formularioGuardarEspacioActual.reset();
+  errorEspacioActual.hidden = true;
+  const activo = espacioActivo();
+  campoNombreEspacioActual.value = activo ? `${activo.nombre} · copia` : '';
+  dialogoGuardarEspacioActual.showModal();
+  requestAnimationFrame(() => campoNombreEspacioActual.focus());
+}
+
+document
+  .getElementById('btn-guardar-espacio-actual')
+  .addEventListener('click', abrirDialogoGuardarEspacioActual);
+document
+  .getElementById('btn-cancelar-espacio-actual')
+  .addEventListener('click', () => dialogoGuardarEspacioActual.close());
+
+formularioGuardarEspacioActual.addEventListener('submit', async (evento) => {
+  evento.preventDefault();
+  const nombre = campoNombreEspacioActual.value.trim();
+  const columnas = tablero.idsVisibles();
+  errorEspacioActual.hidden = true;
+
+  if (!nombre) return;
+  if (columnas.length === 0) {
+    errorEspacioActual.textContent = 'No hay columnas visibles que guardar.';
+    errorEspacioActual.hidden = false;
+    return;
+  }
+
+  btnConfirmarEspacioActual.disabled = true;
+  btnConfirmarEspacioActual.textContent = 'Guardando…';
+  try {
+    const nuevo = {
+      id: `espacio-${Date.now().toString(36)}`,
+      nombre,
+      columnas: [...columnas],
+    };
+    const espaciosTrabajo = [...(ajustesActuales?.espaciosTrabajo ?? []), nuevo];
+    await guardarAjustesUi({ espaciosTrabajo, espacioActivo: nuevo.id });
+    formularioGuardarEspacioActual.reset();
+    dialogoGuardarEspacioActual.close();
+    pintarEspacios();
+    mostrarMensaje(`Copia “${nombre}” guardada`);
+  } catch (error) {
+    errorEspacioActual.textContent = mensajeLimpio(error);
+    errorEspacioActual.hidden = false;
+  } finally {
+    btnConfirmarEspacioActual.disabled = false;
+    btnConfirmarEspacioActual.textContent = 'Guardar copia';
+  }
+});
+
+function columnaDisponible(id) {
+  return tablero.columnas.get(Number(id))?.columna ?? null;
+}
+
+function borradorDesdeColumna(columna) {
+  return {
+    clave: `existente-${columna.id}`,
+    id: columna.id,
+    titulo: columna.titulo,
+    tipo: columna.tipo,
+    fuente: columna.fuente ?? '',
+    vivo: columna.vivo === true,
+    filtros: { ...(columna.filtros ?? {}) },
+  };
+}
+
+function nuevoBorradorColumna() {
+  contadorBorradores += 1;
+  return {
+    clave: `nueva-${Date.now().toString(36)}-${contadorBorradores}`,
+    id: null,
+    titulo: 'Nueva columna',
+    tipo: 'home',
+    fuente: '',
+    vivo: false,
+    filtros: {},
+  };
+}
+
+function actualizarSelectorColumnasExistentes() {
+  const seleccionadas = new Set(
+    borradoresColumnasEspacio
+      .map((borrador) => borrador.id)
+      .filter((id) => Number.isSafeInteger(id)),
+  );
+  selectorColumnaExistente.replaceChildren();
+
+  for (const id of tablero.orden) {
+    const columna = columnaDisponible(id);
+    if (!columna || seleccionadas.has(id)) continue;
+    selectorColumnaExistente.appendChild(
+      new Option(`${columna.titulo} · ${columna.tipo}`, String(id)),
+    );
+  }
+
+  const hayDisponibles = selectorColumnaExistente.options.length > 0;
+  selectorColumnaExistente.disabled = !hayDisponibles;
+  document.getElementById('btn-anadir-columna-existente').disabled = !hayDisponibles;
+  if (!hayDisponibles) {
+    selectorColumnaExistente.appendChild(new Option('No quedan columnas disponibles', ''));
+  }
+}
+
+function moverColumnaEspacio(indice, cambio) {
+  const destino = indice + cambio;
+  if (destino < 0 || destino >= borradoresColumnasEspacio.length) return;
+  const [movida] = borradoresColumnasEspacio.splice(indice, 1);
+  borradoresColumnasEspacio.splice(destino, 0, movida);
+  pintarEditorColumnasEspacio();
+}
+
+function pintarEditorColumnasEspacio() {
+  columnasEspacio.replaceChildren();
+  columnasEspacioVacias.hidden = borradoresColumnasEspacio.length > 0;
+
+  borradoresColumnasEspacio.forEach((borrador, indice) => {
+    const tarjeta = document.createElement('article');
+    tarjeta.className = 'columna-espacio-editor';
+
+    const cabecera = document.createElement('header');
+    const identidad = document.createElement('span');
+    identidad.className = 'columna-espacio-identidad';
+    identidad.textContent = borrador.id
+      ? `${indice + 1}. Columna existente`
+      : `${indice + 1}. Columna nueva`;
+    cabecera.appendChild(identidad);
+
+    const acciones = document.createElement('span');
+    acciones.className = 'columna-espacio-acciones';
+    const arriba = document.createElement('button');
+    arriba.type = 'button';
+    arriba.textContent = '↑';
+    arriba.title = 'Mover hacia arriba';
+    arriba.setAttribute('aria-label', arriba.title);
+    arriba.disabled = indice === 0;
+    arriba.addEventListener('click', () => moverColumnaEspacio(indice, -1));
+    acciones.appendChild(arriba);
+
+    const abajo = document.createElement('button');
+    abajo.type = 'button';
+    abajo.textContent = '↓';
+    abajo.title = 'Mover hacia abajo';
+    abajo.setAttribute('aria-label', abajo.title);
+    abajo.disabled = indice === borradoresColumnasEspacio.length - 1;
+    abajo.addEventListener('click', () => moverColumnaEspacio(indice, 1));
+    acciones.appendChild(abajo);
+
+    const quitar = document.createElement('button');
+    quitar.type = 'button';
+    quitar.textContent = '×';
+    quitar.title = 'Quitar del espacio';
+    quitar.setAttribute('aria-label', quitar.title);
+    quitar.addEventListener('click', () => {
+      borradoresColumnasEspacio.splice(indice, 1);
+      pintarEditorColumnasEspacio();
+    });
+    acciones.appendChild(quitar);
+    cabecera.appendChild(acciones);
+    tarjeta.appendChild(cabecera);
+
+    const campos = document.createElement('div');
+    campos.className = 'columna-espacio-campos';
+
+    const etiquetaTitulo = document.createElement('label');
+    etiquetaTitulo.textContent = 'Título';
+    const campoTitulo = document.createElement('input');
+    campoTitulo.type = 'text';
+    campoTitulo.maxLength = 100;
+    campoTitulo.required = true;
+    campoTitulo.value = borrador.titulo;
+    campoTitulo.addEventListener('input', () => {
+      borrador.titulo = campoTitulo.value;
+    });
+    etiquetaTitulo.appendChild(campoTitulo);
+    campos.appendChild(etiquetaTitulo);
+
+    const etiquetaTipo = document.createElement('label');
+    etiquetaTipo.textContent = 'Contenido';
+    const campoTipo = document.createElement('select');
+    for (const [valor, nombre] of TIPOS_EDITOR_ESPACIO) {
+      campoTipo.appendChild(new Option(nombre, valor));
+    }
+    campoTipo.value = borrador.tipo;
+    etiquetaTipo.appendChild(campoTipo);
+    campos.appendChild(etiquetaTipo);
+
+    const etiquetaFuente = document.createElement('label');
+    etiquetaFuente.className = 'columna-espacio-fuente';
+    etiquetaFuente.textContent = 'Fuente';
+    const campoFuenteEditor = document.createElement('input');
+    campoFuenteEditor.type = 'text';
+    campoFuenteEditor.value = borrador.fuente;
+    campoFuenteEditor.addEventListener('input', () => {
+      borrador.fuente = campoFuenteEditor.value;
+    });
+
+    const selectorListaEditor = document.createElement('select');
+    selectorListaEditor.setAttribute('aria-label', 'Lista de X');
+    const idsListas = new Set();
+    for (const lista of listasEditorEspacio) {
+      const idLista = String(lista.id);
+      idsListas.add(idLista);
+      const privacidad = lista.modo === 'private' ? ' · privada' : '';
+      const miembros = Number.isFinite(Number(lista.miembros)) ? ` · ${lista.miembros} miembros` : '';
+      selectorListaEditor.appendChild(
+        new Option(`${lista.nombre}${privacidad}${miembros}`, idLista),
+      );
+    }
+    if (
+      borrador.tipo === 'list' &&
+      borrador.fuente &&
+      !idsListas.has(String(borrador.fuente))
+    ) {
+      selectorListaEditor.appendChild(
+        new Option(`Lista guardada · ${borrador.fuente}`, String(borrador.fuente)),
+      );
+    }
+    if (selectorListaEditor.options.length === 0) {
+      selectorListaEditor.appendChild(new Option('No hay listas capturadas', ''));
+      selectorListaEditor.disabled = true;
+    }
+    selectorListaEditor.value = String(borrador.fuente ?? '');
+    selectorListaEditor.addEventListener('change', () => {
+      borrador.fuente = selectorListaEditor.value;
+    });
+
+    etiquetaFuente.append(campoFuenteEditor, selectorListaEditor);
+    campos.appendChild(etiquetaFuente);
+
+    const etiquetaOrden = document.createElement('label');
+    etiquetaOrden.className = 'columna-espacio-orden';
+    etiquetaOrden.textContent = 'Orden de búsqueda';
+    const campoOrdenEditor = document.createElement('select');
+    for (const [valor, nombre] of ORDENES_BUSQUEDA_EDITOR) {
+      campoOrdenEditor.appendChild(new Option(nombre, valor));
+    }
+    campoOrdenEditor.value = borrador.filtros?.orden ?? 'live';
+    campoOrdenEditor.addEventListener('change', () => {
+      borrador.filtros = { ...borrador.filtros, orden: campoOrdenEditor.value };
+    });
+    etiquetaOrden.appendChild(campoOrdenEditor);
+    campos.appendChild(etiquetaOrden);
+
+    const etiquetaVivo = document.createElement('label');
+    etiquetaVivo.className = 'checkbox columna-espacio-vivo';
+    const campoVivoEditor = document.createElement('input');
+    campoVivoEditor.type = 'checkbox';
+    campoVivoEditor.checked = borrador.vivo === true;
+    campoVivoEditor.addEventListener('change', () => {
+      borrador.vivo = campoVivoEditor.checked;
+    });
+    const textoVivo = document.createElement('span');
+    textoVivo.textContent = 'Mostrar en vivo';
+    etiquetaVivo.append(campoVivoEditor, textoVivo);
+    campos.appendChild(etiquetaVivo);
+
+    const refrescarTipo = () => {
+      borrador.tipo = campoTipo.value;
+      const necesitaFuente = ['list', 'user', 'search'].includes(borrador.tipo);
+      const esLista = borrador.tipo === 'list';
+      etiquetaFuente.hidden = !necesitaFuente;
+      campoFuenteEditor.hidden = esLista;
+      campoFuenteEditor.required = necesitaFuente && !esLista;
+      selectorListaEditor.hidden = !esLista;
+      selectorListaEditor.required = esLista;
+      etiquetaOrden.hidden = borrador.tipo !== 'search';
+      etiquetaVivo.hidden = borrador.tipo === 'saved';
+      if (esLista && !selectorListaEditor.disabled) {
+        const opcionActual = [...selectorListaEditor.options].some(
+          (opcion) => opcion.value === String(borrador.fuente),
+        );
+        if (!opcionActual) {
+          selectorListaEditor.selectedIndex = 0;
+          borrador.fuente = selectorListaEditor.value;
+        } else {
+          selectorListaEditor.value = String(borrador.fuente);
+        }
+      }
+      if (borrador.tipo === 'saved') {
+        campoVivoEditor.checked = false;
+        borrador.vivo = false;
+      }
+      campoFuenteEditor.placeholder = {
+        list: 'URL o ID de la lista',
+        user: '@usuario o URL del perfil',
+        search: 'Términos de búsqueda',
+      }[borrador.tipo] ?? '';
+    };
+    campoTipo.addEventListener('change', refrescarTipo);
+    refrescarTipo();
+
+    tarjeta.appendChild(campos);
+    columnasEspacio.appendChild(tarjeta);
+  });
+
+  actualizarSelectorColumnasExistentes();
+}
+
+async function abrirDialogoEspacio(id = null) {
   cerrarMenuMas();
   if (document.getElementById('dialogo-opciones').open) document.getElementById('dialogo-opciones').close();
   formularioEspacio.reset();
+  errorEspacio.hidden = true;
+  espacioEditandoId = id;
+  try {
+    listasEditorEspacio = await window.api.listarListas();
+  } catch {
+    listasEditorEspacio = [];
+  }
+
+  const espacio = id
+    ? ajustesActuales?.espaciosTrabajo?.find((item) => item.id === id)
+    : null;
+  tituloDialogoEspacio.textContent = espacio ? 'Editar espacio' : 'Crear espacio';
+  textoDialogoEspacio.textContent = espacio
+    ? 'Ajusta sus columnas, fuentes y orden. Los cambios quedan guardados localmente.'
+    : 'Elige qué columnas contiene, configura sus fuentes y ordénalas.';
+  btnGuardarEditorEspacio.textContent = espacio ? 'Guardar cambios' : 'Crear espacio';
+  campoNombreEspacio.value = espacio?.nombre ?? '';
+
+  // Crear empieza vacío a propósito. Para copiar lo que ya está en pantalla
+  // existe la acción separada "Guardar espacio actual".
+  const idsIniciales = espacio?.columnas ?? [];
+  borradoresColumnasEspacio = idsIniciales
+    .map((columnaId) => columnaDisponible(columnaId))
+    .filter(Boolean)
+    .map(borradorDesdeColumna);
+  pintarEditorColumnasEspacio();
+
   dialogoEspacio.showModal();
   requestAnimationFrame(() => campoNombreEspacio.focus());
 }
 
-document.getElementById('btn-guardar-espacio').addEventListener('click', abrirDialogoEspacio);
-document.getElementById('btn-nuevo-espacio-opciones').addEventListener('click', abrirDialogoEspacio);
+document.getElementById('btn-crear-espacio').addEventListener('click', () => {
+  abrirDialogoEspacio().catch((error) => mostrarMensaje(mensajeLimpio(error)));
+});
+document.getElementById('btn-nuevo-espacio-opciones').addEventListener('click', () => {
+  abrirDialogoEspacio().catch((error) => mostrarMensaje(mensajeLimpio(error)));
+});
 document.getElementById('btn-cancelar-espacio').addEventListener('click', () => dialogoEspacio.close());
+document.getElementById('btn-actualizar-listas-espacio').addEventListener('click', async (evento) => {
+  const boton = evento.currentTarget;
+  boton.disabled = true;
+  boton.textContent = 'Actualizando…';
+  try {
+    listasEditorEspacio = await window.api.refrescarListas();
+    pintarEditorColumnasEspacio();
+  } catch (error) {
+    errorEspacio.textContent = mensajeLimpio(error);
+    errorEspacio.hidden = false;
+  } finally {
+    boton.disabled = false;
+    boton.textContent = 'Actualizar listas';
+  }
+});
+document.getElementById('btn-nueva-columna-espacio').addEventListener('click', () => {
+  borradoresColumnasEspacio.push(nuevoBorradorColumna());
+  pintarEditorColumnasEspacio();
+});
+document.getElementById('btn-anadir-columna-existente').addEventListener('click', () => {
+  const columna = columnaDisponible(selectorColumnaExistente.value);
+  if (!columna) return;
+  borradoresColumnasEspacio.push(borradorDesdeColumna(columna));
+  pintarEditorColumnasEspacio();
+});
 
 formularioEspacio.addEventListener('submit', async (evento) => {
   evento.preventDefault();
   const nombre = campoNombreEspacio.value.trim();
-  if (!nombre) return;
-  const nuevo = {
-    id: `espacio-${Date.now().toString(36)}`,
-    nombre,
-    columnas: tablero.idsVisibles(),
-  };
-  const espaciosTrabajo = [...(ajustesActuales?.espaciosTrabajo ?? []), nuevo];
-  await guardarAjustesUi({ espaciosTrabajo, espacioActivo: nuevo.id });
-  formularioEspacio.reset();
-  dialogoEspacio.close();
-  pintarEspacios();
-  mostrarMensaje(`Espacio “${nombre}” guardado`);
+  errorEspacio.hidden = true;
+  if (!nombre) {
+    campoNombreEspacio.focus();
+    return;
+  }
+  if (borradoresColumnasEspacio.length === 0) {
+    errorEspacio.textContent = 'Añade al menos una columna al espacio.';
+    errorEspacio.hidden = false;
+    return;
+  }
+
+  btnGuardarEditorEspacio.disabled = true;
+  btnGuardarEditorEspacio.textContent = 'Guardando…';
+  try {
+    const resultado = await window.api.guardarColumnasLote(
+      borradoresColumnasEspacio.map((borrador) => ({
+        clave: borrador.clave,
+        id: borrador.id,
+        titulo: borrador.titulo.trim(),
+        tipo: borrador.tipo,
+        fuente: borrador.fuente.trim(),
+        vivo: borrador.vivo,
+        filtros: borrador.filtros,
+      })),
+    );
+    const idsPorClave = new Map(resultado.map((item) => [item.clave, item.id]));
+    const idEspacio = espacioEditandoId ?? `espacio-${Date.now().toString(36)}`;
+    const guardado = {
+      id: idEspacio,
+      nombre,
+      columnas: borradoresColumnasEspacio.map((borrador) => idsPorClave.get(borrador.clave)),
+    };
+    const anteriores = ajustesActuales?.espaciosTrabajo ?? [];
+    const espaciosTrabajo = espacioEditandoId
+      ? anteriores.map((espacio) => espacio.id === espacioEditandoId ? guardado : espacio)
+      : [...anteriores, guardado];
+
+    await guardarAjustesUi({ espaciosTrabajo, espacioActivo: idEspacio });
+    tablero.setEspacioTrabajo(guardado);
+    tablero.reiniciar();
+    await recargarColumnas();
+
+    formularioEspacio.reset();
+    dialogoEspacio.close();
+    pintarEspacios();
+    mostrarMensaje(`Espacio “${nombre}” guardado`);
+  } catch (error) {
+    errorEspacio.textContent = mensajeLimpio(error);
+    errorEspacio.hidden = false;
+  } finally {
+    btnGuardarEditorEspacio.disabled = false;
+    btnGuardarEditorEspacio.textContent = espacioEditandoId ? 'Guardar cambios' : 'Crear espacio';
+  }
 });
 
 async function borrarEspacio(id) {
@@ -308,8 +788,14 @@ function comandosDisponibles() {
     { titulo: 'Refrescar todas las columnas', grupo: 'Acción', ejecutar: () => document.getElementById('btn-refrescar').click() },
     { titulo: cosechaPausada ? 'Reanudar cosecha' : 'Pausar cosecha', grupo: 'Rendimiento', ejecutar: () => cambiarPausaCosecha() },
     { titulo: barraHerramientas.hidden ? 'Mostrar barra de herramientas' : 'Ocultar barra de herramientas', grupo: 'Vista', ejecutar: () => guardarVisibilidadBarra(barraHerramientas.hidden) },
+    { titulo: cabecerasPlegadas ? 'Desplegar cabeceras de columna' : 'Plegar cabeceras de columna', grupo: 'Vista', ejecutar: () => guardarPlegadoCabeceras(!cabecerasPlegadas) },
     { titulo: 'Abrir opciones', grupo: 'Acción', ejecutar: abrirDialogoOpciones },
-    { titulo: 'Guardar espacio actual', grupo: 'Espacios', ejecutar: abrirDialogoEspacio },
+    { titulo: 'Guardar espacio actual', grupo: 'Espacios', ejecutar: abrirDialogoGuardarEspacioActual },
+    {
+      titulo: 'Crear espacio',
+      grupo: 'Espacios',
+      ejecutar: () => abrirDialogoEspacio().catch((error) => mostrarMensaje(mensajeLimpio(error))),
+    },
     { titulo: 'Exportar configuración', grupo: 'Datos', ejecutar: exportarConfiguracion },
     { titulo: 'Importar configuración', grupo: 'Datos', ejecutar: importarConfiguracion },
     {
@@ -579,7 +1065,7 @@ formulario.addEventListener('submit', async (evento) => {
 // --- Modal de opciones ---
 
 const dialogoOpciones = document.getElementById('dialogo-opciones');
-const campoAutoMostrar = document.getElementById('campo-auto-mostrar');
+const listaModsX = document.getElementById('lista-mods-x');
 const campoDensidad = document.getElementById('campo-densidad');
 const campoAnchoColumna = document.getElementById('campo-ancho-columna');
 const campoPalabrasSilenciadas = document.getElementById('campo-palabras-silenciadas');
@@ -587,6 +1073,7 @@ const campoUsuariosSilenciados = document.getElementById('campo-usuarios-silenci
 const campoOcultarRetweets = document.getElementById('campo-ocultar-retweets');
 const campoOcultarMedia = document.getElementById('campo-ocultar-media');
 let temporizadorFiltros = null;
+let modsXEnEdicion = {};
 
 function abrirDialogoOpciones() {
   cerrarMenuMas();
@@ -599,14 +1086,63 @@ document.getElementById('btn-cerrar-opciones').addEventListener('click', () => {
   dialogoOpciones.close();
 });
 
-// Se guarda al momento de marcarlo, sin boton de "aceptar": es un solo ajuste y
-// asi se ve el efecto en las columnas al instante.
-campoAutoMostrar.addEventListener('change', async () => {
-  const activo = campoAutoMostrar.checked;
+function pintarModsX(modsX) {
+  modsXEnEdicion = { ...modsX };
+  listaModsX.replaceChildren();
 
-  tablero.setAutoMostrarPosts(activo);
-  await guardarAjustesUi({ autoMostrarPostsNuevos: activo });
-});
+  for (const mod of window.config.modsXDisponibles) {
+    const etiqueta = document.createElement('label');
+    const nombre = document.createElement('span');
+    nombre.textContent = mod.nombre;
+
+    const descripcion = document.createElement('small');
+    descripcion.textContent = `${mod.tipo} · ${mod.descripcion}`;
+
+    const guardarCambio = async (campo, valor) => {
+      const anterior = { ...modsXEnEdicion };
+      modsXEnEdicion = { ...modsXEnEdicion, [mod.id]: valor };
+      tablero.setModsX(modsXEnEdicion);
+
+      try {
+        const guardados = await guardarAjustesUi({ modsX: modsXEnEdicion });
+        modsXEnEdicion = { ...guardados.modsX };
+      } catch (error) {
+        modsXEnEdicion = anterior;
+        if (mod.control === 'select') campo.value = anterior[mod.id];
+        else campo.checked = anterior[mod.id] === true;
+        tablero.setModsX(anterior);
+        mostrarMensaje(mensajeLimpio(error));
+      }
+    };
+
+    if (mod.control === 'select') {
+      etiqueta.className = 'mod-x mod-x--select';
+
+      const textos = document.createElement('span');
+      textos.className = 'mod-x-textos';
+      textos.append(nombre, descripcion);
+
+      const campo = document.createElement('select');
+      campo.setAttribute('aria-label', mod.nombre);
+      for (const opcion of mod.opciones) {
+        campo.appendChild(new Option(opcion.nombre, opcion.valor));
+      }
+      campo.value = modsXEnEdicion[mod.id];
+      campo.addEventListener('change', () => guardarCambio(campo, campo.value));
+      etiqueta.append(textos, campo);
+    } else {
+      etiqueta.className = 'checkbox checkbox--panel mod-x';
+
+      const campo = document.createElement('input');
+      campo.type = 'checkbox';
+      campo.checked = modsXEnEdicion[mod.id] === true;
+      campo.addEventListener('change', () => guardarCambio(campo, campo.checked));
+      etiqueta.append(campo, nombre, descripcion);
+    }
+
+    listaModsX.appendChild(etiqueta);
+  }
+}
 
 campoDensidad.addEventListener('change', async () => {
   document.body.dataset.densidad = campoDensidad.value;
@@ -646,7 +1182,7 @@ campoOcultarMedia.addEventListener('change', programarGuardadoFiltros);
 
 async function aplicarAjustes(ajustes) {
   ajustesActuales = ajustes;
-  campoAutoMostrar.checked = ajustes.autoMostrarPostsNuevos;
+  pintarModsX(ajustes.modsX);
   campoDensidad.value = ajustes.densidad;
   campoAnchoColumna.value = String(ajustes.anchoColumna);
   campoPalabrasSilenciadas.value = ajustes.filtrosLocales.palabras.join(', ');
@@ -655,9 +1191,10 @@ async function aplicarAjustes(ajustes) {
   campoOcultarMedia.checked = ajustes.filtrosLocales.ocultarMedia;
 
   document.body.dataset.densidad = ajustes.densidad;
-  tablero.setAutoMostrarPosts(ajustes.autoMostrarPostsNuevos);
+  tablero.setModsX(ajustes.modsX);
   tablero.setPreferencias(ajustes);
   aplicarVisibilidadBarra(ajustes.mostrarBarraHerramientas);
+  aplicarPlegadoCabeceras(ajustes.cabecerasPlegadas);
   cosechaPausada = ajustes.cosechaPausada;
   pintarPausaCosecha();
   pintarEspacios();
@@ -676,6 +1213,11 @@ function hayDialogoAbierto() {
 function ejecutarAtajo(accion) {
   if (accion === 'alternar-barra') {
     guardarVisibilidadBarra(barraHerramientas.hidden);
+    return;
+  }
+
+  if (accion === 'alternar-cabeceras') {
+    guardarPlegadoCabeceras(!cabecerasPlegadas);
     return;
   }
 

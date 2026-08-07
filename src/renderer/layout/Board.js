@@ -30,6 +30,7 @@ export class Tablero {
     this.estadoColumnas = {};
     this.filtrosLocales = {};
     this.anchoPredeterminado = 380;
+    this.modsX = {};
     this.espacioActivo = null;
     this.cosechaPausada = false;
     this.borradoPendiente = null;
@@ -71,6 +72,7 @@ export class Tablero {
         expandida: columna.vivo && estadoColumnas[id]?.expandida === true,
         ancho: Number(estadoColumnas[id]?.ancho) || anchoColumna,
         leidoHasta: Number(estadoColumnas[id]?.leidoHasta) || 0,
+        orden: estadoColumnas[id]?.orden ?? 'recientes',
       };
       columna.aplicarEstadoUi();
       columna.setFiltrosLocales(filtrosLocales);
@@ -132,13 +134,23 @@ export class Tablero {
       const fuera = permitidas && !permitidas.has(id);
       columna.elemento.hidden = Boolean(fuera || columna.pendienteBorrado);
     }
+
+    // Cada espacio conserva su propio orden sin modificar el orden global de la
+    // base de datos. Solo cambiamos `order`, por lo que las WebViews no recargan.
+    const ordenVisual = this.espacioActivo?.columnas ?? this.orden;
+    ordenVisual.forEach((id, indice) => {
+      const columna = this.columnas.get(id);
+      if (columna) columna.elemento.style.order = indice;
+    });
+
     this.fijarPrincipal(this.principalId);
     if (!this.idsVisibles().includes(this.activaId)) this.activarColumna(this.idsVisibles()[0] ?? null);
     this.actualizarEstadoVacio();
   }
 
   idsVisibles() {
-    return this.orden.filter((id) => {
+    const ordenVisual = this.espacioActivo?.columnas ?? this.orden;
+    return ordenVisual.filter((id) => {
       const columna = this.columnas.get(id);
       return columna && !columna.elemento.hidden;
     });
@@ -232,11 +244,9 @@ export class Tablero {
 
   /** Las columnas en vivo, de izquierda a derecha tal y como se ven. */
   columnasEnVivo() {
-    // Se recorre `orden` y no el Map: desde que se pueden reordenar, el orden de
-    // insercion en el Map ya no es el orden en que se ven.
-    return this.orden
+    return this.idsVisibles()
       .map((id) => this.columnas.get(id))
-      .filter((columna) => columna && columna.vivo && !columna.elemento.hidden);
+      .filter((columna) => columna?.vivo);
   }
 
   /** Fija (o revalida) cuál es la columna principal y actualiza el marcado. */
@@ -286,25 +296,30 @@ export class Tablero {
   }
 
   aplicarOrdenVisible(idsVisibles) {
+    if (this.espacioActivo) {
+      this.espacioActivo = { ...this.espacioActivo, columnas: [...idsVisibles] };
+      idsVisibles.forEach((id, indice) => {
+        const columna = this.columnas.get(id);
+        if (columna) columna.elemento.style.order = indice;
+      });
+      return;
+    }
     this.aplicarOrden(this.combinarOrdenVisible(idsVisibles));
   }
 
   async guardarOrdenVisible(idsVisibles) {
+    if (this.espacioActivo) {
+      this.aplicarOrdenVisible(idsVisibles);
+      if (this.ui.alActualizarEspacio) this.ui.alActualizarEspacio(this.espacioActivo);
+      return;
+    }
     await this.guardarOrden(this.combinarOrdenVisible(idsVisibles));
   }
 
-  /**
-   * Aplica el ajuste de auto-clic a todas las columnas en vivo.
-   * Se guarda para que las columnas que se creen después nazcan ya con el valor.
-   *
-   * @param {boolean} activo
-   */
-  setAutoMostrarPosts(activo) {
-    this.autoMostrarPosts = activo;
-
-    for (const columna of this.columnasEnVivo()) {
-      columna.enviarAutoMostrarPosts(activo);
-    }
+  /** Aplica y recuerda la configuración completa de mods para las vistas de X. */
+  setModsX(modsX) {
+    this.modsX = { ...modsX };
+    for (const columna of this.columnasEnVivo()) columna.enviarModsX(this.modsX);
   }
 
   /** Guarda el orden en la base de datos. No reconfigura la cosecha: es solo visual. */
@@ -340,8 +355,8 @@ export class Tablero {
       this.columnas.set(datos.id, columna);
       this.contenedor.appendChild(columna.elemento);
       this.arrastre.conectar(datos.id, columna.cabecera);
-      // Una columna en vivo recién creada tiene que nacer con el ajuste puesto.
-      columna.enviarAutoMostrarPosts(this.autoMostrarPosts === true);
+      // Una columna en vivo recién creada tiene que nacer con los mods actuales.
+      columna.enviarModsX(this.modsX);
       columna.setCosechaPausada(this.cosechaPausada);
       await columna.refrescar();
     }

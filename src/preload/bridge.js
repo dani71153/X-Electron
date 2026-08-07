@@ -5,6 +5,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { contextBridge, ipcRenderer } = require('electron');
 const { CANALES } = require('../shared/channels');
+const { CATALOGO_MODS_X } = require('../shared/x-mods');
 const { AJUSTES } = require('../../config/settings');
 
 // Datos que la interfaz necesita para montar las webviews en vivo.
@@ -16,9 +17,9 @@ const CONFIG = {
   // Cada cuanto se cosecha una columna de datos, en minutos. Para el visor.
   cicloMinutos: Math.round(AJUSTES.CICLO_MS / 60000),
 
-  // Auto-clic en "Mostrar N posts": el canal por el que el tablero lo enciende
-  // dentro de una webview, y cada cuanto debe mirar si el boton esta en pantalla.
-  canalAutoMostrar: CANALES.X_AUTO_MOSTRAR_POSTS,
+  // Catalogo para pintar Opciones y canal para aplicar los mods dentro de X.
+  modsXDisponibles: CATALOGO_MODS_X,
+  canalConfigurarMods: CANALES.X_CONFIGURAR_MODS,
   autoClicMs: AJUSTES.AUTO_CLIC_MS,
 };
 
@@ -27,10 +28,13 @@ contextBridge.exposeInMainWorld('config', CONFIG);
 contextBridge.exposeInMainWorld('api', {
   listarColumnas: () => ipcRenderer.invoke(CANALES.COLUMNAS_LISTAR),
   crearColumna: (datos) => ipcRenderer.invoke(CANALES.COLUMNAS_CREAR, datos),
+  guardarColumnasLote: (columnas) =>
+    ipcRenderer.invoke(CANALES.COLUMNAS_GUARDAR_LOTE, columnas),
   borrarColumna: (id) => ipcRenderer.invoke(CANALES.COLUMNAS_BORRAR, id),
   reordenarColumnas: (ids) => ipcRenderer.invoke(CANALES.COLUMNAS_REORDENAR, ids),
-  tweetsDeColumna: (id) => ipcRenderer.invoke(CANALES.TWEETS_DE_COLUMNA, id),
-  tweetsGuardados: () => ipcRenderer.invoke(CANALES.TWEETS_GUARDADOS),
+  tweetsDeColumna: (id, orden) =>
+    ipcRenderer.invoke(CANALES.TWEETS_DE_COLUMNA, { id, orden }),
+  tweetsGuardados: (orden) => ipcRenderer.invoke(CANALES.TWEETS_GUARDADOS, { orden }),
   guardarTweet: (tweetId, guardado) =>
     ipcRenderer.invoke(CANALES.TWEET_GUARDAR, { tweetId, guardado }),
   exportarTweet: (tweetId) => ipcRenderer.invoke(CANALES.TWEET_EXPORTAR, tweetId),

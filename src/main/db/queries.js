@@ -103,8 +103,20 @@ function mapearFilaTweet(f) {
   };
 }
 
-/** Devuelve los tweets de una columna, mas recientes primero, ya con su autor. */
-function tweetsDeColumna(columnaId, limite = 100) {
+const ORDENES_TWEETS = Object.freeze({
+  recientes: 't.created_at DESC',
+  antiguos: 't.created_at ASC',
+  dia: "date(t.created_at / 1000, 'unixepoch', 'localtime') DESC, t.created_at DESC",
+  autor: 'u.handle COLLATE NOCASE ASC, t.created_at DESC',
+  media: "CASE WHEN t.media_json <> '[]' THEN 0 ELSE 1 END ASC, t.created_at DESC",
+});
+
+function ordenTweetsSeguro(orden) {
+  return ORDENES_TWEETS[orden] ?? ORDENES_TWEETS.recientes;
+}
+
+/** Devuelve los tweets de una columna en el orden local solicitado. */
+function tweetsDeColumna(columnaId, limite = 100, orden = 'recientes') {
   const db = obtenerBaseDeDatos();
   const filas = db.prepare(`
     SELECT ${CAMPOS_TWEET}
@@ -112,22 +124,22 @@ function tweetsDeColumna(columnaId, limite = 100) {
     JOIN tweets t ON t.id = ct.tweet_id
     LEFT JOIN users u ON u.id = t.author_id
     WHERE ct.column_id = ?
-    ORDER BY t.created_at DESC
+    ORDER BY ${ordenTweetsSeguro(orden)}
     LIMIT ?
   `).all(entero(columnaId), entero(limite));
 
   return filas.map(mapearFilaTweet);
 }
 
-/** Los tweets guardados localmente, mas recientes primero. */
-function tweetsGuardados(limite = 200) {
+/** Los tweets guardados localmente en el orden solicitado. */
+function tweetsGuardados(limite = 200, orden = 'recientes') {
   const db = obtenerBaseDeDatos();
   const filas = db.prepare(`
     SELECT ${CAMPOS_TWEET}
     FROM tweets t
     LEFT JOIN users u ON u.id = t.author_id
     WHERE t.saved = 1
-    ORDER BY t.created_at DESC
+    ORDER BY ${ordenTweetsSeguro(orden)}
     LIMIT ?
   `).all(entero(limite));
 
@@ -180,6 +192,48 @@ function crearColumna({ titulo, tipo, fuente = '', vivo = false, filtros = {} })
 
   // lastInsertRowid puede venir como BigInt.
   return Number(info.lastInsertRowid);
+}
+
+/**
+ * Actualiza la definición de una columna. Si cambia el flujo que la alimenta,
+ * descarta sus vínculos antiguos para no mezclar posts de dos fuentes.
+ */
+function actualizarColumna(columnaId, { titulo, tipo, fuente = '', vivo = false, filtros = {} }) {
+  const db = obtenerBaseDeDatos();
+  const id = entero(columnaId);
+  const anterior = db.prepare(
+    'SELECT type, source, filters_json FROM columns WHERE id = ?',
+  ).get(id);
+  if (!anterior) throw new Error('La columna que intentas editar ya no existe.');
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const filtrosJson = JSON.stringify(filtros ?? {});
+    db.prepare(`
+      UPDATE columns
+      SET title = ?, type = ?, source = ?, live = ?, filters_json = ?
+      WHERE id = ?
+    `).run(
+      texto(titulo),
+      texto(tipo),
+      texto(fuente) ?? '',
+      bool(vivo),
+      filtrosJson,
+      id,
+    );
+
+    if (
+      anterior.type !== tipo ||
+      anterior.source !== fuente ||
+      anterior.filters_json !== filtrosJson
+    ) {
+      db.prepare('DELETE FROM column_tweets WHERE column_id = ?').run(id);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 function borrarColumna(columnaId) {
@@ -321,6 +375,7 @@ module.exports = {
   rawDeTweet,
   listarColumnas,
   crearColumna,
+  actualizarColumna,
   borrarColumna,
   reordenarColumnas,
   reemplazarColumnas,

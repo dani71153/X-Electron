@@ -1,12 +1,10 @@
 // Creacion de ventanas: la nuestra (el tablero) y la de X (para iniciar sesion).
 
-const fs = require('fs');
 const path = require('path');
 const { BrowserWindow } = require('electron');
 const { AJUSTES } = require('../../config/settings');
 const { CANALES } = require('../shared/channels');
-
-const RUTA_CSS_X = path.join(__dirname, '..', 'preload', 'x-styles.css');
+const { normalizarModsX } = require('../shared/x-mods');
 
 /** Traduce una tecla de Electron a una accion del tablero. */
 function accionDeAtajo(entrada) {
@@ -27,6 +25,7 @@ function accionDeAtajo(entrada) {
   if (!entrada.shift && tecla === ',') return 'abrir-opciones';
   if (!entrada.shift && tecla === 'k') return 'abrir-paleta';
   if (entrada.shift && tecla === 'b') return 'alternar-barra';
+  if (entrada.shift && tecla === 'h') return 'alternar-cabeceras';
   return null;
 }
 
@@ -47,20 +46,6 @@ function registrarAtajosDelTablero(ventana) {
   ventana.webContents.on('before-input-event', alTeclado);
   ventana.webContents.on('did-attach-webview', (_evento, invitado) => {
     invitado.on('before-input-event', alTeclado);
-  });
-}
-
-/**
- * Mete nuestro CSS dentro de la pagina de X.
- * Lo hacemos desde main para que el preload pueda seguir en sandbox: X es
- * codigo que no controlamos, no queremos darle un preload con acceso a Node.
- */
-function inyectarEstilosEnX(webContents) {
-  webContents.on('did-finish-load', () => {
-    const css = fs.readFileSync(RUTA_CSS_X, 'utf8');
-    webContents.insertCSS(css).catch((error) => {
-      console.error('[window] no se pudo inyectar el CSS en X:', error.message);
-    });
   });
 }
 
@@ -98,12 +83,31 @@ function crearVentanaPrincipal() {
  * Comparte particion con los cosechadores, asi la sesion es la misma.
  */
 let ventanaX = null;
+let modsVentanaX = normalizarModsX();
+
+function enviarModsVentanaX() {
+  if (!ventanaX || ventanaX.isDestroyed() || ventanaX.webContents.isDestroyed()) return;
+
+  ventanaX.webContents.send(CANALES.X_CONFIGURAR_MODS, {
+    mods: modsVentanaX,
+    autoClicMs: AJUSTES.AUTO_CLIC_MS,
+  });
+}
+
+/** Guarda los mods y los aplica al instante si la ventana original esta abierta. */
+function configurarModsVentanaX(modsX) {
+  modsVentanaX = normalizarModsX(modsX, modsVentanaX);
+  enviarModsVentanaX();
+}
 
 /**
  * @param {string} url
  * @param {() => void} [alCerrar] Se llama una sola vez, cuando se cierra la ventana
+ * @param {object} [modsX] Configuracion vigente de mods
  */
-function abrirVentanaX(url = 'https://x.com/home', alCerrar = null) {
+function abrirVentanaX(url = 'https://x.com/home', alCerrar = null, modsX = null) {
+  if (modsX) modsVentanaX = normalizarModsX(modsX, modsVentanaX);
+
   // Si ya estaba abierta no la recreamos, solo la traemos al frente.
   // El listener de cierre ya quedo registrado la primera vez.
   if (ventanaX && !ventanaX.isDestroyed()) {
@@ -126,7 +130,9 @@ function abrirVentanaX(url = 'https://x.com/home', alCerrar = null) {
     },
   });
 
-  inyectarEstilosEnX(ventanaX.webContents);
+  // El preload se crea de nuevo en cada navegacion. Reenviamos los mods cuando
+  // ya esta escuchando su canal para no perder el mensaje durante la carga.
+  ventanaX.webContents.on('dom-ready', enviarModsVentanaX);
 
   ventanaX.loadURL(url);
   ventanaX.on('closed', () => {
@@ -137,4 +143,9 @@ function abrirVentanaX(url = 'https://x.com/home', alCerrar = null) {
   return ventanaX;
 }
 
-module.exports = { crearVentanaPrincipal, abrirVentanaX, accionDeAtajo };
+module.exports = {
+  crearVentanaPrincipal,
+  abrirVentanaX,
+  configurarModsVentanaX,
+  accionDeAtajo,
+};

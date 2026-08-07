@@ -29,6 +29,13 @@ Estado: ✅ hecho · ⏳ pendiente de tu sesión
    - Las columnas de búsqueda ahora guardan el orden (Más recientes / Destacados /
      Personas / Multimedia). Antes estaba fijado a "recientes" en el código.
 
+2.4. ✅ Mods configurables para la X original.
+   - En Opciones → Mods de X se activan por separado la interfaz limpia, ocultar
+     promociones de Premium, mostrar posts nuevos automáticamente y el orden del
+     inicio (algoritmo de X o "Siguiendo" con los recientes primero).
+   - Se aplican al instante en columnas en vivo y en la ventana original de X.
+   - Los cosechadores quedan fuera para no alterar su navegación ni sus peticiones.
+
 ---
 
 ## Pendiente

@@ -740,6 +740,66 @@ button:disabled {
   justify-content: center;
 }
 
+/* Cabeceras plegadas (Ctrl+Shift+H).
+   La cabecera se queda en una franja fina y flota sobre el contenido cuando la
+   despliegas, por eso la columna reserva su alto con un padding: asi el
+   contenido nunca cambia de tamano y las webviews no se redimensionan. */
+
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) {
+  padding-top: 11px;
+}
+
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 6;
+  height: 11px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera > * {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transicion);
+}
+
+/* Tirador: la pista de que ahi hay una cabecera escondida. */
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 34px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--borde-fuerte);
+  transform: translateX(-50%);
+}
+
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera:hover,
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera:focus-within {
+  height: auto;
+  min-height: 73px;
+  padding: 12px 12px 10px;
+  overflow: visible;
+  box-shadow: 0 16px 32px rgb(2 9 16 / 0.45);
+}
+
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera:hover > *,
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera:focus-within > * {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera:hover::after,
+body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabecera:focus-within::after {
+  display: none;
+}
+
 .columna-cabecera {
   min-height: 73px;
   flex: 0 0 auto;
@@ -865,8 +925,23 @@ button:disabled {
   white-space: nowrap;
 }
 
-.columna-nuevos {
+.columna-orden {
+  min-width: 0;
+  max-width: 122px;
+  height: 22px;
   margin-left: auto;
+  padding: 1px 20px 1px 6px;
+  border: 1px solid var(--borde);
+  border-radius: 5px;
+  background: var(--superficie);
+  color: var(--texto-suave);
+  font-family: var(--fuente-mono);
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.columna-nuevos {
+  margin-left: 6px;
   padding: 2px 6px;
   border: 1px solid #345c78;
   border-radius: 4px;
@@ -951,6 +1026,22 @@ button:disabled {
   font-family: var(--fuente-mono);
   font-size: 9.5px;
   text-align: center;
+}
+
+.separador-local {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  padding: 6px 12px;
+  border-block: 1px solid var(--borde);
+  background: color-mix(in srgb, var(--lienzo-elevado) 92%, transparent);
+  color: var(--acento-fuerte);
+  font-family: var(--fuente-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
 }
 
 .columna-webview-wrap {
@@ -1251,6 +1342,10 @@ dialog form {
   width: min(520px, calc(100vw - 28px));
 }
 
+#dialogo-espacio {
+  width: min(760px, calc(100vw - 28px));
+}
+
 .dialogo-cabecera {
   display: grid;
   grid-template-columns: 34px 1fr;
@@ -1441,6 +1536,45 @@ label.checkbox small {
   background: var(--lienzo-elevado);
 }
 
+.opciones-seccion--mods {
+  margin-top: 0;
+}
+
+.lista-mods-x {
+  display: grid;
+  gap: 8px;
+}
+
+.mod-x {
+  padding: 12px;
+}
+
+.mod-x--select {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, auto);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--lienzo-elevado);
+}
+
+.mod-x-textos {
+  display: grid;
+  gap: 4px;
+}
+
+.mod-x-textos small {
+  color: var(--texto-suave);
+  font-size: 10.5px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.mod-x--select select {
+  margin: 0;
+}
+
 .opciones-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1518,6 +1652,13 @@ label.checkbox small {
   white-space: nowrap;
 }
 
+.espacio-item > .espacio-item-acciones {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  overflow: visible;
+}
+
 .espacio-item button {
   padding: 4px 7px;
   border: 0;
@@ -1527,9 +1668,143 @@ label.checkbox small {
   cursor: pointer;
 }
 
-.espacio-item button:hover {
+.espacio-item .espacio-editar:hover {
+  background: var(--acento-tinta);
+  color: var(--acento-fuerte);
+}
+
+.espacio-item .espacio-borrar:hover {
   background: var(--peligro-tinta);
   color: #f0a4aa;
+}
+
+.editor-espacio {
+  margin: 4px 0 18px;
+  padding: 14px;
+  border: 1px solid var(--borde);
+  border-radius: 11px;
+  background: var(--lienzo-elevado);
+}
+
+.editor-espacio > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 11px;
+}
+
+.editor-espacio-cabecera-acciones {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editor-espacio h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.editor-espacio p {
+  margin: 3px 0 0;
+  color: var(--texto-suave);
+  font-size: 10.5px;
+}
+
+.editor-espacio-existentes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.editor-espacio-existentes select,
+.editor-espacio-existentes button {
+  margin: 0;
+}
+
+.columnas-espacio {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.columna-espacio-editor {
+  padding: 11px;
+  border: 1px solid var(--borde);
+  border-radius: 9px;
+  background: var(--superficie);
+}
+
+.columna-espacio-editor > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.columna-espacio-identidad {
+  color: var(--texto-suave);
+  font-family: var(--fuente-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.columna-espacio-acciones {
+  display: flex;
+  gap: 3px;
+}
+
+.columna-espacio-acciones button {
+  width: 27px;
+  height: 27px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+.columna-espacio-acciones button:hover:not(:disabled) {
+  border-color: var(--borde);
+  background: var(--superficie-hover);
+  color: var(--texto);
+}
+
+.columna-espacio-campos {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(150px, 0.7fr);
+  gap: 10px;
+}
+
+.columna-espacio-campos label {
+  min-width: 0;
+  margin: 0;
+}
+
+.columna-espacio-fuente {
+  grid-column: 1 / -1;
+}
+
+.columna-espacio-vivo {
+  align-self: end;
+  min-height: 40px;
+  padding: 9px 10px;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-control);
+  background: var(--lienzo-elevado);
+}
+
+.columnas-espacio-vacias {
+  padding: 22px 12px;
+  border: 1px dashed var(--borde-fuerte);
+  border-radius: 8px;
+  text-align: center;
 }
 
 .dialogo-paleta {
@@ -1762,6 +2037,19 @@ label.checkbox small {
 
   .opciones-grid {
     grid-template-columns: 1fr;
+  }
+
+  .mod-x--select {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-espacio-existentes,
+  .columna-espacio-campos {
+    grid-template-columns: 1fr;
+  }
+
+  .columna-espacio-fuente {
+    grid-column: auto;
   }
 }
 

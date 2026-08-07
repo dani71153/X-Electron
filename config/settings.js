@@ -3,6 +3,8 @@
 // Los tiempos estan elegidos para parecer un usuario que deja X abierto, no un
 // robot. Si los bajas mucho, X puede limitarte o bloquearte la cuenta.
 
+const { MODS_X_POR_DEFECTO } = require('../src/shared/x-mods');
+
 const AJUSTES = {
   // Todas las ventanas de X comparten esta particion para compartir la sesion.
   PARTICION_SESION: 'persist:x',
@@ -58,10 +60,13 @@ const AJUSTES = {
 
   // Valores de partida. Lo que el usuario guarde manda sobre esto.
   AJUSTES_POR_DEFECTO: {
-    // Pulsar solo el boton "Mostrar N posts" en las columnas en vivo.
-    autoMostrarPostsNuevos: false,
+    // Modificaciones opcionales aplicadas solo a vistas visibles de X.
+    modsX: MODS_X_POR_DEFECTO,
     // La barra se puede ocultar para ganar altura; queda un control de retorno.
     mostrarBarraHerramientas: true,
+    // Las cabeceras de las columnas se pliegan a una franja fina; al pasar el
+    // raton por encima vuelven a aparecer sin mover el contenido de sitio.
+    cabecerasPlegadas: false,
     // Pausar cierra los cosechadores ocultos hasta que el usuario reanude.
     cosechaPausada: false,
     densidad: 'comoda',

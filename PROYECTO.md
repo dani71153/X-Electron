@@ -141,8 +141,7 @@ X-Electron/
 │   │
 │   ├── preload/                CAPA DE INYECCIÓN
 │   │   ├── bridge.js           contextBridge: API segura para el renderer
-│   │   ├── x-inject.js         JS que corre dentro de X.com
-│   │   └── x-styles.css        CSS que corre dentro de X.com
+│   │   └── x-inject.js         Gestor de mods que corre dentro de X.com
 │   │
 │   ├── renderer/               CAPA DE UI/UX
 │   │   ├── index.html
@@ -254,7 +253,8 @@ QoL añadido: paleta de comandos, navegación entre columnas, columnas contraíb
 y redimensionables, WebView ajustable al espacio libre del tablero, marcador de
 lectura, filtros locales, densidad configurable,
 deshacer al borrar, pausa real de cosecha, espacios de trabajo y copia/restauración
-de la configuración en JSON.
+de la configuración en JSON. La capa de inyección incluye ahora un registro de
+mods activables para las vistas visibles de X, sin afectar a los cosechadores.
 Falta: listas del usuario con un click (pendiente de reconocer el endpoint), temas,
 scroll infinito hacia atrás en el histórico.
 

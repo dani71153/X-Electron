@@ -4,15 +4,18 @@
 const fs = require('fs');
 const { ipcMain, dialog } = require('electron');
 const { CANALES } = require('../shared/channels');
+const { normalizarModsX } = require('../shared/x-mods');
 const { AJUSTES } = require('../../config/settings');
 const consultas = require('./db/queries');
-const { abrirVentanaX } = require('./window');
+const { abrirVentanaX, configurarModsVentanaX } = require('./window');
 const { haySesionIniciada, limpiarSesionX } = require('./session');
 const { normalizarFuente } = require('./harvest/fuente');
 const { urlDeColumna } = require('./harvest/harvester');
 const { cosecharListas } = require('./harvest/listas');
 
 const TIPOS_COLUMNA = new Set(['home', 'notifications', 'list', 'user', 'search', 'saved']);
+const ORDENES_LOCALES = new Set(['recientes', 'antiguos', 'dia', 'autor', 'media']);
+const ORDENES_BUSQUEDA = new Set(['live', 'top', 'user', 'media']);
 
 function jsonSeguro(texto, fallback) {
   if (typeof texto !== 'string') return fallback;
@@ -53,6 +56,7 @@ function normalizarEstadoColumnas(valor) {
       expandida: datos.expandida === true,
       ancho: Math.max(280, Math.min(720, Number(datos.ancho) || 380)),
       leidoHasta: Math.max(0, Number(datos.leidoHasta) || 0),
+      orden: ORDENES_LOCALES.has(datos.orden) ? datos.orden : 'recientes',
     };
   }
   return estado;
@@ -73,6 +77,32 @@ function normalizarEspacios(valor) {
       columnas,
     }];
   });
+}
+
+function normalizarDefinicionColumna(datos, indice = 0) {
+  if (!datos || typeof datos !== 'object' || !TIPOS_COLUMNA.has(datos.tipo)) {
+    throw new Error(`La columna ${indice + 1} no tiene un tipo válido.`);
+  }
+
+  const titulo = String(datos.titulo ?? '').trim().slice(0, 100);
+  if (!titulo) throw new Error(`La columna ${indice + 1} necesita un título.`);
+
+  const idNumero = Number(datos.id);
+  const id = Number.isSafeInteger(idNumero) && idNumero > 0 ? idNumero : null;
+  const fuente = normalizarFuente(datos.tipo, datos.fuente);
+  const ordenBusqueda = ORDENES_BUSQUEDA.has(datos.filtros?.orden)
+    ? datos.filtros.orden
+    : 'live';
+
+  return {
+    clave: String(datos.clave ?? `columna-${indice}`).slice(0, 80),
+    id,
+    titulo,
+    tipo: datos.tipo,
+    fuente,
+    vivo: datos.tipo !== 'saved' && datos.vivo === true,
+    filtros: datos.tipo === 'search' ? { orden: ordenBusqueda } : {},
+  };
 }
 
 /** Añade a cada columna su URL de X, que el renderer usa para las webviews. */
@@ -97,18 +127,27 @@ function ajustesDeUsuario() {
   const espaciosTrabajo = normalizarEspacios(
     jsonSeguro(guardados.espaciosTrabajo, porDefecto.espaciosTrabajo),
   );
+  const modsGuardados = {
+    ...jsonSeguro(guardados.modsX, porDefecto.modsX),
+  };
+  // Compatibilidad con configuraciones exportadas antes del sistema de mods.
+  if (guardados.modsX === undefined && guardados.autoMostrarPostsNuevos !== undefined) {
+    modsGuardados.autoMostrarPosts = guardados.autoMostrarPostsNuevos === '1';
+  }
+  const modsX = normalizarModsX(modsGuardados, porDefecto.modsX);
   const idsEspacios = new Set(espaciosTrabajo.map((espacio) => espacio.id));
   const espacioActivo = idsEspacios.has(guardados.espacioActivo) ? guardados.espacioActivo : null;
 
   return {
-    autoMostrarPostsNuevos:
-      guardados.autoMostrarPostsNuevos === undefined
-        ? porDefecto.autoMostrarPostsNuevos
-        : guardados.autoMostrarPostsNuevos === '1',
+    modsX,
     mostrarBarraHerramientas:
       guardados.mostrarBarraHerramientas === undefined
         ? porDefecto.mostrarBarraHerramientas
         : guardados.mostrarBarraHerramientas === '1',
+    cabecerasPlegadas:
+      guardados.cabecerasPlegadas === undefined
+        ? porDefecto.cabecerasPlegadas
+        : guardados.cabecerasPlegadas === '1',
     cosechaPausada:
       guardados.cosechaPausada === undefined
         ? porDefecto.cosechaPausada
@@ -130,11 +169,27 @@ function ajustesDeUsuario() {
 function guardarAjustesReconocidos(ajustes) {
   if (!ajustes || typeof ajustes !== 'object') return ajustesDeUsuario();
 
-  const booleanos = ['autoMostrarPostsNuevos', 'mostrarBarraHerramientas', 'cosechaPausada'];
+  const booleanos = ['mostrarBarraHerramientas', 'cabecerasPlegadas', 'cosechaPausada'];
   for (const clave of booleanos) {
     if (typeof ajustes[clave] === 'boolean') {
       consultas.guardarAjuste(clave, ajustes[clave] ? '1' : '0');
     }
+  }
+
+  let modsRecibidos = ajustes.modsX;
+  if (modsRecibidos === undefined && typeof ajustes.autoMostrarPostsNuevos === 'boolean') {
+    modsRecibidos = { autoMostrarPosts: ajustes.autoMostrarPostsNuevos };
+  }
+  if (modsRecibidos !== undefined) {
+    const actuales = ajustesDeUsuario().modsX;
+    const parcial =
+      modsRecibidos && typeof modsRecibidos === 'object' && !Array.isArray(modsRecibidos)
+        ? modsRecibidos
+        : {};
+    consultas.guardarAjuste(
+      'modsX',
+      JSON.stringify(normalizarModsX({ ...actuales, ...parcial }, actuales)),
+    );
   }
 
   if (['compacta', 'comoda'].includes(ajustes.densidad)) {
@@ -211,6 +266,39 @@ function registrarIpc(alCambiarColumnas, alPausarCosecha = async () => {}) {
     return id;
   });
 
+  ipcMain.handle(CANALES.COLUMNAS_GUARDAR_LOTE, async (_evento, columnas) => {
+    if (!Array.isArray(columnas) || columnas.length === 0 || columnas.length > 100) {
+      throw new Error('El espacio debe contener entre 1 y 100 columnas.');
+    }
+
+    // Primero se valida todo. Así una fuente incorrecta no deja medio lote
+    // guardado antes de mostrar el error al usuario.
+    const definiciones = columnas.map(normalizarDefinicionColumna);
+    const existentes = new Set(consultas.listarColumnas().map((columna) => columna.id));
+    const repetidos = new Set();
+
+    for (const definicion of definiciones) {
+      if (definicion.id === null) continue;
+      if (!existentes.has(definicion.id)) {
+        throw new Error(`La columna “${definicion.titulo}” ya no existe.`);
+      }
+      if (repetidos.has(definicion.id)) {
+        throw new Error(`La columna “${definicion.titulo}” está repetida.`);
+      }
+      repetidos.add(definicion.id);
+    }
+
+    const resultado = definiciones.map((definicion) => {
+      let id = definicion.id;
+      if (id === null) id = consultas.crearColumna(definicion);
+      else consultas.actualizarColumna(id, definicion);
+      return { clave: definicion.clave, id };
+    });
+
+    await alCambiarColumnas();
+    return resultado;
+  });
+
   ipcMain.handle(CANALES.COLUMNAS_BORRAR, async (_evento, columnaId) => {
     consultas.borrarColumna(columnaId);
     await alCambiarColumnas();
@@ -226,12 +314,15 @@ function registrarIpc(alCambiarColumnas, alPausarCosecha = async () => {}) {
     consultas.reordenarColumnas(idsEnOrden);
   });
 
-  ipcMain.handle(CANALES.TWEETS_DE_COLUMNA, (_evento, columnaId) => {
-    return consultas.tweetsDeColumna(columnaId, AJUSTES.TWEETS_POR_COLUMNA);
+  ipcMain.handle(CANALES.TWEETS_DE_COLUMNA, (_evento, datos) => {
+    const columnaId = datos && typeof datos === 'object' ? datos.id : datos;
+    const orden = ORDENES_LOCALES.has(datos?.orden) ? datos.orden : 'recientes';
+    return consultas.tweetsDeColumna(columnaId, AJUSTES.TWEETS_POR_COLUMNA, orden);
   });
 
-  ipcMain.handle(CANALES.TWEETS_GUARDADOS, () => {
-    return consultas.tweetsGuardados(AJUSTES.TWEETS_POR_COLUMNA);
+  ipcMain.handle(CANALES.TWEETS_GUARDADOS, (_evento, datos) => {
+    const orden = ORDENES_LOCALES.has(datos?.orden) ? datos.orden : 'recientes';
+    return consultas.tweetsGuardados(AJUSTES.TWEETS_POR_COLUMNA, orden);
   });
 
   ipcMain.handle(CANALES.TWEET_GUARDAR, (_evento, { tweetId, guardado }) => {
@@ -263,7 +354,11 @@ function registrarIpc(alCambiarColumnas, alPausarCosecha = async () => {}) {
   ipcMain.handle(CANALES.AJUSTES_LEER, () => ajustesDeUsuario());
 
   ipcMain.handle(CANALES.AJUSTES_GUARDAR, (_evento, ajustes) => {
-    return guardarAjustesReconocidos(ajustes);
+    const guardados = guardarAjustesReconocidos(ajustes);
+    if (ajustes?.modsX !== undefined || typeof ajustes?.autoMostrarPostsNuevos === 'boolean') {
+      configurarModsVentanaX(guardados.modsX);
+    }
+    return guardados;
   });
 
   ipcMain.handle(CANALES.COSECHA_PAUSAR, async (_evento, pausada) => {
@@ -324,6 +419,7 @@ function registrarIpc(alCambiarColumnas, alPausarCosecha = async () => {}) {
 
     consultas.reemplazarColumnas(columnas);
     const ajustes = guardarAjustesReconocidos(contenido.ajustes ?? {});
+    configurarModsVentanaX(ajustes.modsX);
     await alPausarCosecha(ajustes.cosechaPausada);
     return { ok: true, columnas: conUrl(consultas.listarColumnas()), ajustes };
   });
@@ -348,7 +444,7 @@ function registrarIpc(alCambiarColumnas, alPausarCosecha = async () => {}) {
   ipcMain.handle(CANALES.X_ABRIR_LOGIN, () => {
     // Al cerrar la ventana de X damos por hecho que el usuario ya ha iniciado
     // sesion (o no). Reconfiguramos: si ahora hay sesion, empieza la cosecha.
-    abrirVentanaX('https://x.com/home', () => alCambiarColumnas());
+    abrirVentanaX('https://x.com/home', () => alCambiarColumnas(), ajustesDeUsuario().modsX);
   });
 
   // Borra la sesion de X y abre el login limpio.
@@ -362,14 +458,14 @@ function registrarIpc(alCambiarColumnas, alPausarCosecha = async () => {}) {
     // interfaz enseñe el aviso de "inicia sesion".
     await alCambiarColumnas();
 
-    abrirVentanaX('https://x.com/login', () => alCambiarColumnas());
+    abrirVentanaX('https://x.com/login', () => alCambiarColumnas(), ajustesDeUsuario().modsX);
   });
 
   // Abre una URL concreta de X en la ventana aparte. Se usa como respaldo al
   // abrir un tweet cuando no hay ninguna columna en vivo donde mostrarlo.
   ipcMain.handle(CANALES.X_ABRIR_URL, (_evento, url) => {
     if (typeof url === 'string' && /^https:\/\/x\.com\//.test(url)) {
-      abrirVentanaX(url, () => alCambiarColumnas());
+      abrirVentanaX(url, () => alCambiarColumnas(), ajustesDeUsuario().modsX);
     }
   });
 }

@@ -15,6 +15,16 @@ const ETIQUETA_TIPO = {
   saved: 'Guardados',
 };
 
+const ORDENES_LOCALES = [
+  ['recientes', 'Recientes'],
+  ['antiguos', 'Antiguos'],
+  ['dia', 'Por día'],
+  ['autor', 'Por autor'],
+  ['media', 'Multimedia primero'],
+];
+
+const ORDENES_LOCALES_VALIDOS = new Set(ORDENES_LOCALES.map(([valor]) => valor));
+
 /** 1720000000000 -> "hace 2 min" */
 function hace(ms) {
   const s = Math.floor((Date.now() - ms) / 1000);
@@ -36,6 +46,9 @@ export class Columna {
       expandida: this.vivo && acciones.estadoUi?.expandida === true,
       ancho: Number(acciones.estadoUi?.ancho) || Number(acciones.anchoPredeterminado) || 380,
       leidoHasta: Number(acciones.estadoUi?.leidoHasta) || 0,
+      orden: ORDENES_LOCALES_VALIDOS.has(acciones.estadoUi?.orden)
+        ? acciones.estadoUi.orden
+        : 'recientes',
     };
     this.filtrosLocales = acciones.filtrosLocales ?? {};
     this.noLeidos = 0;
@@ -291,29 +304,26 @@ export class Columna {
     webview.addEventListener('did-navigate', alNavegar);
     webview.addEventListener('did-navigate-in-page', alNavegar);
 
-    // Cada navegación carga el preload de cero y se pierde su temporizador, así
-    // que hay que volver a decirle el ajuste. 'dom-ready' salta en cada carga.
-    webview.addEventListener('dom-ready', () => this.enviarAutoMostrarPosts());
+    // Cada navegación carga el preload de cero, así que reenviamos todos los mods.
+    webview.addEventListener('dom-ready', () => this.enviarModsX());
 
     return webview;
   }
 
   /**
-   * Enciende o apaga dentro de X el auto-clic en "Mostrar N posts".
-   * Solo tiene sentido en columnas en vivo: las de datos no tienen webview.
-   *
-   * @param {boolean} [activo] Si se omite, reenvía el último valor conocido.
+   * Aplica dentro de X los mods habilitados. Si se omiten, reenvía los últimos.
+   * Solo tiene sentido en columnas en vivo: las de datos no tienen WebView.
    */
-  enviarAutoMostrarPosts(activo) {
-    if (activo !== undefined) this.autoMostrarPosts = activo;
+  enviarModsX(modsX) {
+    if (modsX !== undefined) this.modsX = { ...modsX };
     if (!this.vivo || !this.webview) return;
 
     // Si la webview aún no ha cargado, send() peta. El 'dom-ready' de arriba se
     // encargará de reenviarlo en cuanto esté lista.
     try {
-      this.webview.send(window.config.canalAutoMostrar, {
-        activo: this.autoMostrarPosts === true,
-        intervaloMs: window.config.autoClicMs,
+      this.webview.send(window.config.canalConfigurarMods, {
+        mods: this.modsX ?? {},
+        autoClicMs: window.config.autoClicMs,
       });
     } catch {
       /* la webview todavía no está lista */
@@ -454,6 +464,24 @@ export class Columna {
   }
 
   completarVisor() {
+    if (!this.vivo) {
+      const selector = document.createElement('select');
+      selector.className = 'columna-orden';
+      selector.title = 'Ordenar los posts guardados en esta columna';
+      selector.setAttribute('aria-label', `Orden de ${this.columna.titulo}`);
+      for (const [valor, nombre] of ORDENES_LOCALES) {
+        selector.appendChild(new Option(nombre, valor));
+      }
+      selector.value = this.estadoUi.orden;
+      selector.addEventListener('pointerdown', (evento) => evento.stopPropagation());
+      selector.addEventListener('change', () => {
+        this.estadoUi.orden = selector.value;
+        this.guardarEstadoUi();
+        this.refrescar().catch((error) => console.error('[ui] ordenar columna:', error));
+      });
+      this.visor.appendChild(selector);
+    }
+
     if (this.noLeidos > 0 && !this.vivo) {
       const nuevos = document.createElement('button');
       nuevos.type = 'button';
@@ -461,6 +489,10 @@ export class Columna {
       nuevos.textContent = `${this.noLeidos} nuevos`;
       nuevos.title = 'Ir al inicio y marcar como leídos';
       nuevos.addEventListener('click', () => {
+        if (!['recientes', 'dia'].includes(this.estadoUi.orden)) {
+          this.estadoUi.orden = 'recientes';
+          this.guardarEstadoUi();
+        }
         this.lista.scrollTo({ top: 0, behavior: 'smooth' });
         this.marcarLeido();
       });
@@ -496,11 +528,11 @@ export class Columna {
 
     // La columna de guardados sale de otra consulta; el resto, de su columna.
     const recibidos = this.esGuardados
-      ? await window.api.tweetsGuardados()
-      : await window.api.tweetsDeColumna(this.columna.id);
+      ? await window.api.tweetsGuardados(this.estadoUi.orden)
+      : await window.api.tweetsDeColumna(this.columna.id, this.estadoUi.orden);
 
     if (this.estadoUi.leidoHasta === 0 && recibidos.length > 0) {
-      this.estadoUi.leidoHasta = recibidos[0].creadoEn;
+      this.estadoUi.leidoHasta = Math.max(...recibidos.map((tweet) => tweet.creadoEn));
       this.guardarEstadoUi();
     }
 
@@ -528,9 +560,23 @@ export class Columna {
       return;
     }
 
+    let grupoAnterior = null;
     for (const [indice, tweet] of tweets.entries()) {
+      const grupo = this.grupoDeTweet(tweet);
+      if (grupo && grupo.clave !== grupoAnterior) {
+        const separador = document.createElement('div');
+        separador.className = 'separador-local';
+        separador.textContent = grupo.etiqueta;
+        this.lista.appendChild(separador);
+        grupoAnterior = grupo.clave;
+      }
+
       this.lista.appendChild(crearTweet(tweet, this.acciones));
-      if (this.noLeidos > 0 && indice + 1 === this.noLeidos) {
+      if (
+        this.noLeidos > 0 &&
+        ['recientes', 'dia'].includes(this.estadoUi.orden) &&
+        indice + 1 === this.noLeidos
+      ) {
         const marca = document.createElement('div');
         marca.className = 'marcador-lectura';
         marca.textContent = 'Hasta aquí habías leído';
@@ -556,8 +602,39 @@ export class Columna {
     return true;
   }
 
+  grupoDeTweet(tweet) {
+    if (this.estadoUi.orden === 'dia') {
+      const fecha = new Date(tweet.creadoEn);
+      const clave = `${fecha.getFullYear()}-${fecha.getMonth()}-${fecha.getDate()}`;
+      return {
+        clave,
+        etiqueta: fecha.toLocaleDateString('es-ES', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        }),
+      };
+    }
+    if (this.estadoUi.orden === 'autor') {
+      const handle = tweet.autor?.handle ?? 'desconocido';
+      return { clave: handle.toLocaleLowerCase('es'), etiqueta: `@${handle}` };
+    }
+    if (this.estadoUi.orden === 'media') {
+      const conMedia = (tweet.media?.length ?? 0) > 0;
+      return {
+        clave: conMedia ? 'media' : 'texto',
+        etiqueta: conMedia ? 'Con multimedia' : 'Solo texto',
+      };
+    }
+    return null;
+  }
+
   marcarLeido(repintar = true) {
-    const masReciente = this.tweetsActuales[0]?.creadoEn ?? 0;
+    const masReciente = this.tweetsActuales.reduce(
+      (maximo, tweet) => Math.max(maximo, tweet.creadoEn),
+      0,
+    );
     if (masReciente > this.estadoUi.leidoHasta) {
       this.estadoUi.leidoHasta = masReciente;
       this.guardarEstadoUi();

@@ -11,6 +11,7 @@ const CANALES = {
   TWEETS_GUARDADOS: 'tweets:guardados',
   TWEET_GUARDAR: 'tweets:guardar',
   TWEET_EXPORTAR: 'tweets:exportar',
+  TENDENCIAS_LISTAR: 'tendencias:listar',
   LISTAS_LISTAR: 'listas:listar',
   LISTAS_REFRESCAR: 'listas:refrescar',
   X_ABRIR_LOGIN: 'x:abrirLogin',

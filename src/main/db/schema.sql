@@ -65,3 +65,18 @@ CREATE TABLE IF NOT EXISTS lists (
   banner_url   TEXT NOT NULL DEFAULT '',
   updated_at   INTEGER NOT NULL
 );
+
+-- Tendencias de X, capturadas de las respuestas que ya pasan por el interceptor.
+-- La clave es el nombre: X manda la misma tendencia una y otra vez y aqui solo
+-- queremos la ultima foto de cada una, no un historico.
+CREATE TABLE IF NOT EXISTS trends (
+  name        TEXT PRIMARY KEY,
+  query       TEXT NOT NULL DEFAULT '',
+  context     TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  post_count  INTEGER NOT NULL DEFAULT 0,
+  position    INTEGER NOT NULL DEFAULT 0,
+  updated_at  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_trends_updated ON trends (updated_at DESC);

@@ -217,6 +217,10 @@ let borradoresColumnasEspacio = [];
 let contadorBorradores = 0;
 let listasEditorEspacio = [];
 
+// Columnas que se pintan desde la base de datos: nunca pueden ser webview en
+// vivo y no piden fuente al usuario.
+const TIPOS_SOLO_LOCALES = ['saved', 'trends'];
+
 const TIPOS_EDITOR_ESPACIO = [
   ['home', 'Inicio'],
   ['notifications', 'Notificaciones'],
@@ -224,6 +228,7 @@ const TIPOS_EDITOR_ESPACIO = [
   ['user', 'Perfil'],
   ['search', 'Búsqueda'],
   ['saved', 'Guardados locales'],
+  ['trends', 'Tendencias'],
 ];
 
 const ORDENES_BUSQUEDA_EDITOR = [
@@ -562,7 +567,7 @@ function pintarEditorColumnasEspacio() {
       selectorListaEditor.hidden = !esLista;
       selectorListaEditor.required = esLista;
       etiquetaOrden.hidden = borrador.tipo !== 'search';
-      etiquetaVivo.hidden = borrador.tipo === 'saved';
+      etiquetaVivo.hidden = TIPOS_SOLO_LOCALES.includes(borrador.tipo);
       if (esLista && !selectorListaEditor.disabled) {
         const opcionActual = [...selectorListaEditor.options].some(
           (opcion) => opcion.value === String(borrador.fuente),
@@ -574,7 +579,7 @@ function pintarEditorColumnasEspacio() {
           selectorListaEditor.value = String(borrador.fuente);
         }
       }
-      if (borrador.tipo === 'saved') {
+      if (TIPOS_SOLO_LOCALES.includes(borrador.tipo)) {
         campoVivoEditor.checked = false;
         borrador.vivo = false;
       }
@@ -945,8 +950,9 @@ function actualizarVisibilidadFuente() {
     pistaFuente.textContent = ayuda.pista;
   }
 
-  // "Guardados" sale de la base de datos local: no puede ser webview en vivo.
-  const permiteVivo = tipo !== 'saved';
+  // "Guardados" y "Tendencias" salen de la base de datos local: no pueden ser
+  // webview en vivo.
+  const permiteVivo = !TIPOS_SOLO_LOCALES.includes(tipo);
   campoVivo.parentElement.style.display = permiteVivo ? '' : 'none';
   if (!permiteVivo) campoVivo.checked = false;
 

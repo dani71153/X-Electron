@@ -13,7 +13,10 @@ const { normalizarFuente } = require('./harvest/fuente');
 const { urlDeColumna } = require('./harvest/harvester');
 const { cosecharListas } = require('./harvest/listas');
 
-const TIPOS_COLUMNA = new Set(['home', 'notifications', 'list', 'user', 'search', 'saved']);
+const TIPOS_COLUMNA = new Set(['home', 'notifications', 'list', 'user', 'search', 'saved', 'trends']);
+
+// Columnas que se pintan desde la base de datos y nunca son una webview de X.
+const TIPOS_SOLO_LOCALES = new Set(['saved', 'trends']);
 const ORDENES_LOCALES = new Set(['recientes', 'antiguos', 'dia', 'autor', 'media']);
 const ORDENES_BUSQUEDA = new Set(['live', 'top', 'user', 'media']);
 
@@ -100,7 +103,7 @@ function normalizarDefinicionColumna(datos, indice = 0) {
     titulo,
     tipo: datos.tipo,
     fuente,
-    vivo: datos.tipo !== 'saved' && datos.vivo === true,
+    vivo: !TIPOS_SOLO_LOCALES.has(datos.tipo) && datos.vivo === true,
     filtros: datos.tipo === 'search' ? { orden: ordenBusqueda } : {},
   };
 }
@@ -237,7 +240,7 @@ function normalizarColumnasImportadas(valor) {
       titulo,
       tipo: columna.tipo,
       fuente: String(columna.fuente ?? '').slice(0, 500),
-      vivo: columna.tipo !== 'saved' && columna.vivo === true,
+      vivo: !TIPOS_SOLO_LOCALES.has(columna.tipo) && columna.vivo === true,
       filtros:
         columna.filtros && typeof columna.filtros === 'object' && !Array.isArray(columna.filtros)
           ? columna.filtros
@@ -429,6 +432,13 @@ function registrarIpc(alCambiarColumnas, alPausarCosecha = async () => {}) {
       sesionIniciada: await haySesionIniciada(),
       cosechaPausada: ajustesDeUsuario().cosechaPausada,
     };
+  });
+
+  // Tendencias vigentes. Aprovechamos para tirar las que ya caducaron: la tabla
+  // se queda pequena sin necesitar un temporizador de limpieza aparte.
+  ipcMain.handle(CANALES.TENDENCIAS_LISTAR, () => {
+    consultas.limpiarTendencias();
+    return consultas.listarTendencias();
   });
 
   ipcMain.handle(CANALES.LISTAS_LISTAR, () => {

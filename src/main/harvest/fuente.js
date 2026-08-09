@@ -88,7 +88,7 @@ function normalizarBusqueda(entrada) {
  * Convierte lo que escribio el usuario en la fuente que guardamos en la base de datos.
  * Lanza un Error con un mensaje entendible si la entrada no vale.
  *
- * @param {string} tipo   'home' | 'notifications' | 'list' | 'user' | 'search'
+ * @param {string} tipo   'home' | 'notifications' | 'list' | 'user' | 'search' | 'saved' | 'trends'
  * @param {string} entrada Lo que escribio el usuario
  * @returns {string} La fuente limpia ('' para home y notifications)
  */
@@ -99,6 +99,7 @@ function normalizarFuente(tipo, entrada) {
     case 'home':
     case 'notifications':
     case 'saved':
+    case 'trends':
       return ''; // no necesitan fuente
     case 'user':
       return normalizarUsuario(texto);

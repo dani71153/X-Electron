@@ -1083,6 +1083,84 @@ body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabec
     var(--lienzo-elevado);
 }
 
+/* Tendencias */
+
+.tendencia {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 8px 0 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.tendencia:hover {
+  background: var(--superficie-hover);
+}
+
+.tendencia-abrir {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  padding: 12px 4px 12px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tendencia-posicion {
+  width: 18px;
+  flex: 0 0 auto;
+  color: var(--texto-suave);
+  font-family: var(--fuente-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tendencia-cuerpo {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.tendencia-nombre {
+  overflow: hidden;
+  color: var(--texto);
+  font-size: 14px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tendencia-abrir:hover .tendencia-nombre {
+  color: var(--acento-fuerte);
+}
+
+.tendencia-meta {
+  overflow: hidden;
+  color: var(--texto-suave);
+  font-family: var(--fuente-mono);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* El "+" solo aparece al acercarse a la fila: no compite con el nombre. */
+.tendencia-anadir {
+  align-self: center;
+  opacity: 0;
+}
+
+.tendencia:hover .tendencia-anadir,
+.tendencia-anadir:focus-visible {
+  opacity: 1;
+}
+
 /* Tweets */
 
 .tweet {

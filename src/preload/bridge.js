@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('api', {
   guardarTweet: (tweetId, guardado) =>
     ipcRenderer.invoke(CANALES.TWEET_GUARDAR, { tweetId, guardado }),
   exportarTweet: (tweetId) => ipcRenderer.invoke(CANALES.TWEET_EXPORTAR, tweetId),
+  tendencias: () => ipcRenderer.invoke(CANALES.TENDENCIAS_LISTAR),
   listarListas: () => ipcRenderer.invoke(CANALES.LISTAS_LISTAR),
   refrescarListas: () => ipcRenderer.invoke(CANALES.LISTAS_REFRESCAR),
   abrirX: () => ipcRenderer.invoke(CANALES.X_ABRIR_LOGIN),

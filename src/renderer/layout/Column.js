@@ -13,7 +13,12 @@ const ETIQUETA_TIPO = {
   user: 'Perfil',
   search: 'Búsqueda',
   saved: 'Guardados',
+  trends: 'Tendencias',
 };
+
+// Cada cuanto la columna de tendencias vuelve a leer la base de datos. No pide
+// nada a X: las tendencias las traen de paso los cosechadores de otras columnas.
+const REFRESCO_TENDENCIAS_MS = 60 * 1000;
 
 const ORDENES_LOCALES = [
   ['recientes', 'Recientes'],
@@ -34,6 +39,25 @@ function hace(ms) {
   return `hace ${Math.floor(s / 3600)} h`;
 }
 
+/** "Tendencia en España · 12,3 mil posts" */
+function textoDeTendencia(tendencia) {
+  const partes = [];
+  if (tendencia.contexto) partes.push(tendencia.contexto);
+  if (tendencia.posts > 0) {
+    const cantidad = new Intl.NumberFormat('es-ES', { notation: 'compact' }).format(tendencia.posts);
+    partes.push(`${cantidad} posts`);
+  } else if (tendencia.descripcion) {
+    partes.push(tendencia.descripcion);
+  }
+  return partes.join(' · ');
+}
+
+/** URL de X para ver una tendencia. Sin f=, X muestra los destacados. */
+function urlDeTendencia(tendencia) {
+  const consulta = tendencia.consulta || tendencia.nombre;
+  return `https://x.com/search?q=${encodeURIComponent(consulta)}`;
+}
+
 export class Columna {
   constructor(columna, alBorrar, acciones = {}) {
     this.columna = columna;
@@ -41,6 +65,7 @@ export class Columna {
     this.acciones = acciones; // callbacks compartidos: alCambiarGuardado, alAbrir
     this.vivo = columna.vivo === true;
     this.esGuardados = columna.tipo === 'saved';
+    this.esTendencias = columna.tipo === 'trends';
     this.estadoUi = {
       colapsada: acciones.estadoUi?.colapsada === true,
       expandida: this.vivo && acciones.estadoUi?.expandida === true,
@@ -60,9 +85,18 @@ export class Columna {
     this.fase = 'esperando'; // 'esperando' | 'cosechando' | 'ok'
     this.actualizadaEn = 0;
     this.tickVisor = null;
+    this.tickTendencias = null;
 
     this.elemento = this.crearElemento();
     this.aplicarEstadoUi();
+
+    // Las tendencias no las trae un cosechador propio, asi que nadie avisa a
+    // esta columna de que hay datos nuevos: los relee ella sola cada minuto.
+    if (this.esTendencias) {
+      this.tickTendencias = setInterval(() => {
+        this.refrescar().catch((error) => console.error('[ui] tendencias:', error));
+      }, REFRESCO_TENDENCIAS_MS);
+    }
   }
 
   crearElemento() {
@@ -428,6 +462,22 @@ export class Columna {
       return;
     }
 
+    // Las tendencias vienen de rebote de las demas columnas: lo que importa es
+    // cuando se vieron por ultima vez, no una fase de cosecha propia.
+    if (this.esTendencias) {
+      this.visor.innerHTML = '';
+      const punto = document.createElement('span');
+      punto.className = this.actualizadaEn > 0 ? 'punto punto--ok' : 'punto punto--espera';
+      this.visor.appendChild(punto);
+      this.visor.append(
+        this.actualizadaEn > 0
+          ? ` Vistas ${hace(this.actualizadaEn)}`
+          : ' Aún sin datos de X',
+      );
+      this.completarVisor();
+      return;
+    }
+
     // Guardados no se cosecha: sale de la base local, no tiene "última actualización".
     if (this.esGuardados) {
       this.visor.innerHTML = '';
@@ -464,7 +514,7 @@ export class Columna {
   }
 
   completarVisor() {
-    if (!this.vivo) {
+    if (!this.vivo && !this.esTendencias) {
       const selector = document.createElement('select');
       selector.className = 'columna-orden';
       selector.title = 'Ordenar los posts guardados en esta columna';
@@ -525,6 +575,7 @@ export class Columna {
   /** Vuelve a pedir los tweets a main y repinta la lista. */
   async refrescar() {
     if (this.vivo) return; // las webviews se refrescan solas
+    if (this.esTendencias) return this.refrescarTendencias();
 
     // La columna de guardados sale de otra consulta; el resto, de su columna.
     const recibidos = this.esGuardados
@@ -588,6 +639,93 @@ export class Columna {
     this.pintarVisor();
   }
 
+  // --- Tendencias ---
+
+  /** Relee las tendencias guardadas y repinta la lista. */
+  async refrescarTendencias() {
+    const tendencias = await window.api.tendencias();
+
+    this.actualizadaEn = tendencias.reduce(
+      (maximo, tendencia) => Math.max(maximo, tendencia.actualizadaEn ?? 0),
+      0,
+    );
+
+    this.lista.replaceChildren();
+
+    if (tendencias.length === 0) {
+      const vacio = document.createElement('p');
+      vacio.className = 'columna-vacia';
+      // Explicamos de donde salen porque no hay ningun boton que las traiga:
+      // dependen de que haya otra columna cosechando.
+      vacio.textContent =
+        'Todavía no hay tendencias. Se capturan solas cuando alguna columna de datos (Inicio, lista, búsqueda…) hace su siguiente ronda.';
+      this.lista.appendChild(vacio);
+      this.pintarVisor();
+      return;
+    }
+
+    for (const tendencia of tendencias) {
+      this.lista.appendChild(this.crearTendencia(tendencia));
+    }
+
+    this.pintarVisor();
+  }
+
+  /** Una fila de la columna de tendencias. */
+  crearTendencia(tendencia) {
+    const fila = document.createElement('article');
+    fila.className = 'tendencia';
+
+    // El cuerpo entero es el boton de abrir: es un blanco grande y facil.
+    const abrir = document.createElement('button');
+    abrir.type = 'button';
+    abrir.className = 'tendencia-abrir';
+    abrir.title = `Abrir "${tendencia.nombre}" en la columna principal`;
+
+    const posicion = document.createElement('span');
+    posicion.className = 'tendencia-posicion';
+    posicion.textContent = String(tendencia.posicion || '·');
+    posicion.setAttribute('aria-hidden', 'true');
+    abrir.appendChild(posicion);
+
+    const cuerpo = document.createElement('span');
+    cuerpo.className = 'tendencia-cuerpo';
+
+    const nombre = document.createElement('span');
+    nombre.className = 'tendencia-nombre';
+    nombre.textContent = tendencia.nombre;
+    cuerpo.appendChild(nombre);
+
+    const meta = document.createElement('span');
+    meta.className = 'tendencia-meta';
+    meta.textContent = textoDeTendencia(tendencia);
+    cuerpo.appendChild(meta);
+
+    abrir.appendChild(cuerpo);
+    abrir.addEventListener('click', () => {
+      if (this.acciones.alAbrir) this.acciones.alAbrir(urlDeTendencia(tendencia));
+    });
+    fila.appendChild(abrir);
+
+    const anadir = document.createElement('button');
+    anadir.type = 'button';
+    anadir.className = 'columna-icono tendencia-anadir';
+    anadir.textContent = '+';
+    anadir.title = `Seguir "${tendencia.nombre}" en una columna de búsqueda`;
+    anadir.setAttribute('aria-label', `Añadir ${tendencia.nombre} como columna de búsqueda`);
+    anadir.addEventListener('click', () => {
+      if (!this.acciones.alAnadirBusqueda) return;
+      this.acciones.alAnadirBusqueda({
+        query: tendencia.consulta || tendencia.nombre,
+        orden: 'live',
+        titulo: tendencia.nombre.length > 24 ? tendencia.nombre.slice(0, 24) + '…' : tendencia.nombre,
+      });
+    });
+    fila.appendChild(anadir);
+
+    return fila;
+  }
+
   pasaFiltros(tweet) {
     const filtros = this.filtrosLocales ?? {};
     const texto = String(tweet.texto ?? '').toLocaleLowerCase('es');
@@ -646,6 +784,7 @@ export class Columna {
 
   destruir() {
     if (this.tickVisor) clearInterval(this.tickVisor);
+    if (this.tickTendencias) clearInterval(this.tickTendencias);
     if (this.observador) this.observador.disconnect();
     this.elemento.remove();
   }

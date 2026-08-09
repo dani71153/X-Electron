@@ -18,6 +18,7 @@ const { AJUSTES } = require('../../../config/settings');
 const { engancharInterceptor } = require('../capture/interceptor');
 const { haySesionIniciada } = require('../session');
 const { extraerTimeline } = require('../parse/timeline');
+const { extraerTendencias } = require('../parse/tendencias');
 const { conJitter, esperar } = require('./tiempo');
 const consultas = require('../db/queries');
 
@@ -28,6 +29,10 @@ function urlDeColumna(columna) {
   switch (columna.tipo) {
     case 'saved':
       // Columna de guardados: se pinta desde la BD, no tiene URL de X.
+      return null;
+    case 'trends':
+      // Las tendencias tampoco se visitan: se capturan de las respuestas que ya
+      // provocan las demas columnas (ver guardarTendencias).
       return null;
     case 'home':
       return 'https://x.com/home';
@@ -97,6 +102,9 @@ class Cosechador {
     this.desenganchar = engancharInterceptor(this.ventana.webContents, {
       alRecibirTimeline: (datos) => this.guardarTimeline(datos),
       alFrenar: (datos) => this.alFrenar(datos),
+      // Las tendencias vienen de regalo: la barra lateral de X las pide sola al
+      // cargar la pagina, asi que no hacemos ni una peticion extra por ellas.
+      alRecibirTendencias: (json) => this.guardarTendencias(json),
       bloquearRecursosPesados: true,
     });
   }
@@ -258,6 +266,19 @@ class Cosechador {
 
     if (this.alGuardar) this.alGuardar(this.columna.id, nuevos);
   }
+
+  /**
+   * Guarda las tendencias que venian en una respuesta cualquiera de X.
+   * No van ligadas a esta columna: son globales, las pinta la columna de
+   * tendencias desde la base de datos.
+   */
+  guardarTendencias(json) {
+    const tendencias = extraerTendencias(json);
+    if (tendencias.length === 0) return;
+
+    consultas.guardarTendencias(tendencias);
+    console.log(`[cosecha] ${tendencias.length} tendencias capturadas de paso`);
+  }
 }
 
 /**
@@ -318,7 +339,7 @@ class GestorDeCosecha {
 
     // No se cosechan: las en vivo (webview) ni las de guardados (salen de la BD).
     for (const columna of columnas) {
-      if (columna.vivo || columna.tipo === 'saved') continue;
+      if (columna.vivo || columna.tipo === 'saved' || columna.tipo === 'trends') continue;
       this.cosechadores.set(
         columna.id,
         new Cosechador(columna, this.alGuardar, (datos) => this.frenar(datos)),

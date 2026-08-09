@@ -365,6 +365,85 @@ function listarListas() {
   }));
 }
 
+// ---------- Tendencias ----------
+
+/**
+ * Guarda (o actualiza) un lote de tendencias en una sola transaccion.
+ * Se llama muy a menudo: X repite las mismas tendencias en cada respuesta.
+ */
+function guardarTendencias(tendencias) {
+  if (!Array.isArray(tendencias) || tendencias.length === 0) return 0;
+
+  const db = obtenerBaseDeDatos();
+  const guardar = db.prepare(`
+    INSERT INTO trends (name, query, context, description, post_count, position, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET
+      query = excluded.query,
+      context = excluded.context,
+      description = excluded.description,
+      post_count = excluded.post_count,
+      position = excluded.position,
+      updated_at = excluded.updated_at
+  `);
+
+  const ahora = Date.now();
+
+  db.exec('BEGIN');
+  try {
+    for (const tendencia of tendencias) {
+      guardar.run(
+        texto(tendencia.nombre),
+        texto(tendencia.consulta) ?? '',
+        texto(tendencia.contexto) ?? '',
+        texto(tendencia.descripcion) ?? '',
+        entero(tendencia.posts),
+        entero(tendencia.posicion),
+        ahora,
+      );
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+
+  return tendencias.length;
+}
+
+/**
+ * Devuelve las tendencias vigentes, en el orden de ranking de X.
+ * Solo las de la ultima cosecha: las que llevan mas de `frescuraMs` sin
+ * aparecer ya no son tendencia, aunque sigan en la tabla.
+ */
+function listarTendencias(frescuraMs = 6 * 60 * 60 * 1000, limite = 50) {
+  const db = obtenerBaseDeDatos();
+  const desde = Date.now() - Math.max(0, entero(frescuraMs));
+  const filas = db.prepare(`
+    SELECT * FROM trends
+    WHERE updated_at >= ?
+    ORDER BY position ASC, post_count DESC
+    LIMIT ?
+  `).all(desde, Math.max(1, entero(limite)));
+
+  return filas.map((f) => ({
+    nombre: f.name,
+    consulta: f.query,
+    contexto: f.context,
+    descripcion: f.description,
+    posts: f.post_count,
+    posicion: f.position,
+    actualizadaEn: f.updated_at,
+  }));
+}
+
+/** Borra las tendencias que ya no vuelven a aparecer. Mantiene la tabla pequena. */
+function limpiarTendencias(maximoMs = 24 * 60 * 60 * 1000) {
+  const db = obtenerBaseDeDatos();
+  return db.prepare('DELETE FROM trends WHERE updated_at < ?')
+    .run(Date.now() - Math.max(0, entero(maximoMs))).changes;
+}
+
 module.exports = {
   guardarUsuario,
   guardarTweet,
@@ -384,4 +463,7 @@ module.exports = {
   guardarAjuste,
   guardarLista,
   listarListas,
+  guardarTendencias,
+  listarTendencias,
+  limpiarTendencias,
 };

@@ -54,6 +54,21 @@ function esTimeline(url) {
   return operacion.includes('Timeline');
 }
 
+// Las tendencias llegan por dos sitios segun la version de X: como operacion
+// GraphQL de la pagina Explorar / la barra lateral, o como el endpoint REST
+// antiguo /i/api/2/guide.json. Aceptamos los dos y dejamos que el parser decida
+// si el cuerpo trae tendencias de verdad.
+const GUIA_REST = '/i/api/2/guide.json';
+const NOMBRES_DE_TENDENCIAS = /trend|explore|guide/i;
+
+/** ¿Esta respuesta puede traer tendencias? */
+function esOperacionDeTendencias(url) {
+  if (url.includes(GUIA_REST)) return true;
+  const operacion = nombreDeOperacion(url);
+  if (!operacion) return false;
+  return NOMBRES_DE_TENDENCIAS.test(operacion);
+}
+
 // Operaciones que devuelven las listas del usuario. La conocida es
 // ListsManagementPageTimeline (la pagina /i/lists). No la fijamos: cualquier
 // operacion cuyo nombre contenga "List" puede traer listas, y las detectamos
@@ -70,5 +85,6 @@ module.exports = {
   nombreDeOperacion,
   esTimeline,
   esOperacionDeListas,
+  esOperacionDeTendencias,
   OPERACIONES_DE_TIMELINE,
 };

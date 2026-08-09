@@ -9,7 +9,13 @@
 // No modificamos nada de la peticion: X funciona exactamente igual, nosotros
 // solo nos quedamos con una copia de lo que ya viajaba.
 
-const { esLlamadaGraphQL, esTimeline, esOperacionDeListas, nombreDeOperacion } = require('./endpoints');
+const {
+  esLlamadaGraphQL,
+  esTimeline,
+  esOperacionDeListas,
+  esOperacionDeTendencias,
+  nombreDeOperacion,
+} = require('./endpoints');
 const { AJUSTES } = require('../../../config/settings');
 
 // Codigos con los que X nos esta diciendo que paremos.
@@ -32,11 +38,18 @@ const RECURSOS_PESADOS_DE_X = [
  * @param {(datos: {url: string, operacion: string, json: object}) => void} manejadores.alRecibirTimeline
  * @param {(datos: {status: number, operacion: string}) => void} manejadores.alFrenar
  * @param {(json: object) => void} [manejadores.alRecibirListas] Opcional: JSON con posibles listas
+ * @param {(json: object) => void} [manejadores.alRecibirTendencias] Opcional: JSON con posibles tendencias
  * @returns {() => void} Funcion para desenganchar
  */
 function engancharInterceptor(
   webContents,
-  { alRecibirTimeline, alFrenar, alRecibirListas, bloquearRecursosPesados = false },
+  {
+    alRecibirTimeline,
+    alFrenar,
+    alRecibirListas,
+    alRecibirTendencias,
+    bloquearRecursosPesados = false,
+  },
 ) {
   const depurador = webContents.debugger;
 
@@ -61,7 +74,9 @@ function engancharInterceptor(
 
     if (metodo === 'Network.responseReceived') {
       const url = params.response?.url ?? '';
-      if (esLlamadaGraphQL(url)) {
+      // Las tendencias pueden llegar por el endpoint REST antiguo (guide.json),
+      // que no es GraphQL: por eso hay dos condiciones y no una.
+      if (esLlamadaGraphQL(url) || esOperacionDeTendencias(url)) {
         peticiones.set(params.requestId, { url, status: params.response.status });
       }
       return;
@@ -90,13 +105,21 @@ function engancharInterceptor(
 
     const timeline = esTimeline(url);
     const listas = Boolean(alRecibirListas) && esOperacionDeListas(url);
+    const tendencias = Boolean(alRecibirTendencias) && esOperacionDeTendencias(url);
 
     if (AJUSTES.LOG_ENDPOINTS) {
-      console.log('[graphql]', operacion, timeline ? '<- timeline' : listas ? '<- listas' : '');
+      const etiqueta = timeline
+        ? '<- timeline'
+        : listas
+          ? '<- listas'
+          : tendencias
+            ? '<- tendencias'
+            : '';
+      console.log('[graphql]', operacion ?? url, etiqueta);
     }
 
-    // Solo leemos el cuerpo si nos interesa (timeline o listas).
-    if (!timeline && !listas) return;
+    // Solo leemos el cuerpo si nos interesa (timeline, listas o tendencias).
+    if (!timeline && !listas && !tendencias) return;
 
     try {
       const respuesta = await depurador.sendCommand('Network.getResponseBody', {
@@ -122,6 +145,7 @@ function engancharInterceptor(
 
       if (timeline) alRecibirTimeline({ url, operacion, json });
       if (listas) alRecibirListas(json);
+      if (tendencias) alRecibirTendencias(json);
     } catch (error) {
       // Chrome descarta el cuerpo pasado un rato. Si llegamos tarde, lo perdemos
       // y ya esta: el siguiente ciclo lo volvera a pedir.

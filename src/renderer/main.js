@@ -1,6 +1,9 @@
 // Arranque de la interfaz.
 
 import { Tablero } from './layout/Board.js';
+import { pintarRail } from './layout/Rail.js';
+import { pintarBarraEstado } from './layout/BarraEstado.js';
+import { crearIcono } from './components/Icono.js';
 import { actualizarEstado } from './state/store.js';
 
 const contenedor = document.getElementById('tablero');
@@ -47,6 +50,7 @@ async function recargarColumnas() {
     const columnas = await window.api.listarColumnas();
     actualizarEstado({ columnas, cargando: false, error: null });
     await tablero.sincronizar(columnas);
+    refrescarBarraEstado();
   } catch (error) {
     const mensaje = mensajeLimpio(error);
     actualizarEstado({ cargando: false, error: mensaje });
@@ -64,6 +68,72 @@ const tablero = new Tablero(contenedor, recargarColumnas, {
 });
 
 // Al final del archivo se llama a arrancar(), que ademas comprueba la sesion.
+
+// --- Barra de estado inferior ---
+//
+// No guarda estado propio: lo recalcula del tablero y de las variables que ya
+// mantiene este archivo. Se repinta desde los pocos sitios donde algo cambia.
+
+const barraEstado = document.getElementById('barra-estado');
+const INTERVALO_SISTEMA_MS = 15000;
+// Espera antes de recontar la base. Los tweets llegan a rafagas: sin esto un
+// ciclo de cosecha dispararia un escaneo completo por cada columna.
+const ESPERA_BIBLIOTECA_MS = 5000;
+
+let sesionIniciada = false;
+let biblioteca = null;
+let sistema = null;
+let temporizadorBiblioteca = null;
+
+function refrescarBarraEstado() {
+  let enVivo = 0;
+  let ultimaCaptura = 0;
+
+  for (const columna of tablero.columnas.values()) {
+    if (columna.vivo) enVivo++;
+    if (columna.actualizadaEn > ultimaCaptura) ultimaCaptura = columna.actualizadaEn;
+  }
+
+  pintarBarraEstado(barraEstado, {
+    columnas: tablero.columnas.size,
+    enVivo,
+    ultimaCaptura,
+    cosechaPausada,
+    sesionIniciada,
+    espacio: espacioActivo()?.nombre ?? 'Todas las columnas',
+    biblioteca,
+    sistema,
+  });
+}
+
+/** Cuenta lo guardado. Es un escaneo completo: no llamar en cada tweet. */
+async function cargarBiblioteca() {
+  try {
+    biblioteca = await window.api.estadisticasBiblioteca();
+    refrescarBarraEstado();
+  } catch (error) {
+    console.error('[ui] no se pudieron contar los posts guardados:', error);
+  }
+}
+
+// Antirrebote de cola: la primera llamada programa el recuento y las siguientes
+// se descartan hasta que ese recuento ocurre.
+function programarRecuentoBiblioteca() {
+  if (temporizadorBiblioteca) return;
+  temporizadorBiblioteca = setTimeout(() => {
+    temporizadorBiblioteca = null;
+    cargarBiblioteca();
+  }, ESPERA_BIBLIOTECA_MS);
+}
+
+async function cargarSistema() {
+  try {
+    sistema = await window.api.estadisticasSistema();
+    refrescarBarraEstado();
+  } catch (error) {
+    console.error('[ui] no se pudo leer el uso de memoria:', error);
+  }
+}
 
 // --- Barra superior ---
 
@@ -163,6 +233,7 @@ function pintarPausaCosecha() {
     : 'Pausar la cosecha y liberar sus ventanas ocultas';
   btnPausarCosecha.setAttribute('aria-label', btnPausarCosecha.title);
   tablero.setCosechaPausada(cosechaPausada);
+  refrescarBarraEstado();
 }
 
 async function cambiarPausaCosecha(pausada = !cosechaPausada) {
@@ -195,7 +266,8 @@ document.addEventListener('keydown', (evento) => {
 
 // --- Espacios de trabajo, importacion y paleta de comandos ---
 
-const selectorEspacio = document.getElementById('selector-espacio');
+const railEspacios = document.getElementById('rail-espacios');
+const tituloEspacio = document.getElementById('titulo-espacio');
 const listaEspacios = document.getElementById('lista-espacios');
 const dialogoGuardarEspacioActual = document.getElementById('dialogo-guardar-espacio-actual');
 const formularioGuardarEspacioActual = document.getElementById('form-guardar-espacio-actual');
@@ -249,12 +321,9 @@ function espacioActivo() {
 
 function pintarEspacios() {
   const espacios = ajustesActuales?.espaciosTrabajo ?? [];
-  selectorEspacio.replaceChildren(new Option('Todas las columnas', ''));
   listaEspacios.replaceChildren();
 
   for (const espacio of espacios) {
-    selectorEspacio.appendChild(new Option(espacio.nombre, espacio.id));
-
     const fila = document.createElement('div');
     fila.className = 'espacio-item';
     const nombre = document.createElement('span');
@@ -285,18 +354,31 @@ function pintarEspacios() {
     listaEspacios.appendChild(fila);
   }
 
-  selectorEspacio.value = ajustesActuales?.espacioActivo ?? '';
-  tablero.setEspacioTrabajo(espacioActivo());
+  const activo = espacioActivo();
+  tituloEspacio.textContent = activo?.nombre ?? 'Todas las columnas';
+  document.getElementById('pista-espacios').textContent =
+    espacios.length === 1 ? '1 guardado' : `${espacios.length} guardados`;
+
+  pintarRail(railEspacios, {
+    espacios,
+    activo: ajustesActuales?.espacioActivo ?? null,
+    alSeleccionar: (id) => {
+      seleccionarEspacio(id).catch((error) => mostrarMensaje(mensajeLimpio(error)));
+    },
+    alCrear: () => {
+      abrirDialogoEspacio().catch((error) => mostrarMensaje(mensajeLimpio(error)));
+    },
+    alAbrirOpciones: () => abrirDialogoOpciones(),
+  });
+
+  tablero.setEspacioTrabajo(activo);
+  refrescarBarraEstado();
 }
 
 async function seleccionarEspacio(id) {
   await guardarAjustesUi({ espacioActivo: id || null });
   pintarEspacios();
 }
-
-selectorEspacio.addEventListener('change', () => {
-  seleccionarEspacio(selectorEspacio.value).catch((error) => mostrarMensaje(mensajeLimpio(error)));
-});
 
 function abrirDialogoGuardarEspacioActual() {
   cerrarMenuMas();
@@ -1083,71 +1165,224 @@ let modsXEnEdicion = {};
 
 function abrirDialogoOpciones() {
   cerrarMenuMas();
+  cargarAlmacenamiento();
   if (!dialogoOpciones.open) dialogoOpciones.showModal();
 }
 
 document.getElementById('btn-opciones').addEventListener('click', abrirDialogoOpciones);
 
-document.getElementById('btn-cerrar-opciones').addEventListener('click', () => {
-  dialogoOpciones.close();
+for (const id of ['btn-cerrar-opciones', 'btn-cerrar-opciones-x']) {
+  document.getElementById(id).addEventListener('click', () => dialogoOpciones.close());
+}
+
+// Los iconos van en el HTML como data-icono y se rellenan aquí: así el markup
+// no arrastra SVG a mano y todos salen de la misma paleta.
+for (const elemento of dialogoOpciones.querySelectorAll('[data-icono]')) {
+  const svg = crearIcono(elemento.dataset.icono, elemento.classList.contains('opciones-marca') ? 16 : 14);
+  if (svg) elemento.prepend(svg);
+}
+
+// --- Navegación entre paneles de opciones ---
+
+const navOpciones = document.getElementById('opciones-nav');
+
+const campoGuardarPosts = document.getElementById('campo-guardar-posts');
+const campoLimpiezaAutomatica = document.getElementById('campo-limpieza-automatica');
+const botonLimpiarPublicaciones = document.getElementById('btn-limpiar-publicaciones');
+async function cargarAlmacenamiento() {
+  try {
+    const datos = await window.api.almacenamiento();
+    campoGuardarPosts.checked = datos.guardarPostsAutomaticamente;
+    campoLimpiezaAutomatica.value = String(datos.limpiezaAutomaticaDias);
+    const mib = (datos.bytes / 1024 / 1024).toLocaleString('es', { maximumFractionDigits: 1 });
+    document.getElementById('resumen-almacenamiento').textContent =
+      `${mib} MiB · ${datos.posts.toLocaleString('es')} posts · ${datos.autores.toLocaleString('es')} autores · ${datos.guardados || 0} guardados. Base de datos local; no incluye la caché del navegador.`;
+  } catch (error) {
+    document.getElementById('resumen-almacenamiento').textContent = mensajeLimpio(error);
+  }
+}
+for (const campo of [campoGuardarPosts, campoLimpiezaAutomatica]) {
+  campo.addEventListener('change', async () => {
+    campoGuardarPosts.disabled = campoLimpiezaAutomatica.disabled = true;
+    try {
+      await guardarAjustesUi({
+        guardarPostsAutomaticamente: campoGuardarPosts.checked,
+        limpiezaAutomaticaDias: Number(campoLimpiezaAutomatica.value),
+      });
+    } catch (error) { mostrarMensaje(mensajeLimpio(error)); }
+    finally {
+      await cargarAlmacenamiento();
+      campoGuardarPosts.disabled = campoLimpiezaAutomatica.disabled = false;
+    }
+  });
+}
+botonLimpiarPublicaciones.addEventListener('click', async () => {
+  botonLimpiarPublicaciones.disabled = true;
+  const estado = document.getElementById('estado-limpieza');
+  estado.textContent = 'Preparando limpieza…';
+  try {
+    const resultado = await window.api.limpiarPublicaciones(Number(document.getElementById('campo-plazo-limpieza').value));
+    estado.textContent = resultado.cancelado ? 'Limpieza cancelada.' : `${resultado.eliminados} publicaciones eliminadas. Tus guardados se conservaron.`;
+    await cargarAlmacenamiento();
+    if (!resultado.cancelado) {
+      await cargarBiblioteca();
+      for (const columna of tablero.columnas.values()) {
+        if (!columna.vivo) await columna.refrescar();
+      }
+    }
+  } catch (error) { estado.textContent = mensajeLimpio(error); }
+  finally { botonLimpiarPublicaciones.disabled = false; }
+});
+
+function mostrarPanelOpciones(idPanel) {
+  if (idPanel === 'panel-almacenamiento') cargarAlmacenamiento();
+  for (const boton of navOpciones.querySelectorAll('.opciones-nav-item')) {
+    const activo = boton.dataset.panel === idPanel;
+    boton.classList.toggle('opciones-nav-item--activo', activo);
+    if (activo) boton.setAttribute('aria-current', 'true');
+    else boton.removeAttribute('aria-current');
+    document.getElementById(boton.dataset.panel).hidden = !activo;
+  }
+}
+
+navOpciones.addEventListener('click', (evento) => {
+  const boton = evento.target.closest('.opciones-nav-item');
+  if (boton) mostrarPanelOpciones(boton.dataset.panel);
 });
 
 function pintarModsX(modsX) {
   modsXEnEdicion = { ...modsX };
   listaModsX.replaceChildren();
 
+  // Los mods se agrupan por su campo `tipo`, en el orden del catálogo. Así
+  // "Experimental" queda separado y se puede avisar de que es lo que es.
+  const grupos = new Map();
   for (const mod of window.config.modsXDisponibles) {
-    const etiqueta = document.createElement('label');
-    const nombre = document.createElement('span');
-    nombre.textContent = mod.nombre;
-
-    const descripcion = document.createElement('small');
-    descripcion.textContent = `${mod.tipo} · ${mod.descripcion}`;
-
-    const guardarCambio = async (campo, valor) => {
-      const anterior = { ...modsXEnEdicion };
-      modsXEnEdicion = { ...modsXEnEdicion, [mod.id]: valor };
-      tablero.setModsX(modsXEnEdicion);
-
-      try {
-        const guardados = await guardarAjustesUi({ modsX: modsXEnEdicion });
-        modsXEnEdicion = { ...guardados.modsX };
-      } catch (error) {
-        modsXEnEdicion = anterior;
-        if (mod.control === 'select') campo.value = anterior[mod.id];
-        else campo.checked = anterior[mod.id] === true;
-        tablero.setModsX(anterior);
-        mostrarMensaje(mensajeLimpio(error));
-      }
-    };
-
-    if (mod.control === 'select') {
-      etiqueta.className = 'mod-x mod-x--select';
-
-      const textos = document.createElement('span');
-      textos.className = 'mod-x-textos';
-      textos.append(nombre, descripcion);
-
-      const campo = document.createElement('select');
-      campo.setAttribute('aria-label', mod.nombre);
-      for (const opcion of mod.opciones) {
-        campo.appendChild(new Option(opcion.nombre, opcion.valor));
-      }
-      campo.value = modsXEnEdicion[mod.id];
-      campo.addEventListener('change', () => guardarCambio(campo, campo.value));
-      etiqueta.append(textos, campo);
-    } else {
-      etiqueta.className = 'checkbox checkbox--panel mod-x';
-
-      const campo = document.createElement('input');
-      campo.type = 'checkbox';
-      campo.checked = modsXEnEdicion[mod.id] === true;
-      campo.addEventListener('change', () => guardarCambio(campo, campo.checked));
-      etiqueta.append(campo, nombre, descripcion);
-    }
-
-    listaModsX.appendChild(etiqueta);
+    if (!grupos.has(mod.tipo)) grupos.set(mod.tipo, []);
+    grupos.get(mod.tipo).push(mod);
   }
+
+  document.getElementById('pista-mods').textContent =
+    `${window.config.modsXDisponibles.length} activables`;
+
+  for (const [tipo, mods] of grupos) {
+    const experimental = tipo.toLowerCase() === 'experimental';
+
+    const cabecera = document.createElement('h4');
+    cabecera.className = experimental ? 'mods-grupo mods-grupo--aviso' : 'mods-grupo';
+    const titulo = document.createElement('span');
+    titulo.textContent = tipo;
+    cabecera.appendChild(titulo);
+    if (experimental) {
+      const alerta = crearIcono('alerta', 11);
+      if (alerta) cabecera.appendChild(alerta);
+    }
+    listaModsX.appendChild(cabecera);
+
+    for (const mod of mods) listaModsX.appendChild(crearFilaMod(mod));
+  }
+}
+
+function crearFilaMod(mod) {
+  const etiqueta = document.createElement(mod.control === 'range' ? 'div' : 'label');
+  etiqueta.className = 'mod-x';
+
+  const textos = document.createElement('span');
+  textos.className = 'mod-x-textos';
+
+  const nombre = document.createElement('span');
+  nombre.className = 'mod-x-nombre';
+  nombre.textContent = mod.nombre;
+
+  const descripcion = document.createElement('small');
+  descripcion.textContent = mod.descripcion;
+  textos.append(nombre, descripcion);
+
+  const guardarCambio = async (campo, valor) => {
+    const anterior = { ...modsXEnEdicion };
+    modsXEnEdicion = { ...modsXEnEdicion, [mod.id]: valor };
+    tablero.setModsX(modsXEnEdicion);
+
+    try {
+      const guardados = await guardarAjustesUi({ modsX: modsXEnEdicion });
+      modsXEnEdicion = { ...guardados.modsX };
+    } catch (error) {
+      modsXEnEdicion = anterior;
+      if (mod.control === 'select') campo.value = anterior[mod.id];
+      else campo.checked = anterior[mod.id] === true;
+      tablero.setModsX(anterior);
+      mostrarMensaje(mensajeLimpio(error));
+    }
+  };
+
+  if (mod.control === 'range') {
+    const controles = document.createElement('div');
+    controles.className = 'mod-x-margen';
+    const barra = document.createElement('input');
+    barra.type = 'range';
+    barra.min = mod.min;
+    barra.step = '1';
+    barra.setAttribute('aria-label', mod.nombre);
+    const numero = document.createElement('input');
+    numero.type = 'number';
+    numero.min = mod.min;
+    numero.max = mod.max;
+    numero.step = '1';
+    numero.setAttribute('aria-label', `${mod.nombre} en pixeles`);
+    const unidad = document.createElement('span');
+    unidad.textContent = 'px';
+    const sincronizar = (valor) => {
+      barra.max = Math.max(mod.maxBarra, valor);
+      barra.value = valor;
+      numero.value = valor;
+    };
+    sincronizar(modsXEnEdicion[mod.id] ?? mod.predeterminado);
+    let colaGuardado = Promise.resolve();
+    const cambiar = (campo, guardar) => {
+      if (campo.value === '' || !campo.validity.valid) return;
+      const valor = Number(campo.value);
+      sincronizar(valor);
+      tablero.setModsX({ ...modsXEnEdicion, [mod.id]: valor });
+      if (!guardar) return;
+      colaGuardado = colaGuardado.then(async () => {
+        await guardarCambio(numero, valor);
+        sincronizar(modsXEnEdicion[mod.id] ?? mod.predeterminado);
+      });
+    };
+    for (const campo of [barra, numero]) {
+      campo.addEventListener('input', () => cambiar(campo, false));
+      campo.addEventListener('change', () => {
+        if (campo.value === '' || !campo.validity.valid) {
+          sincronizar(modsXEnEdicion[mod.id] ?? mod.predeterminado);
+          tablero.setModsX(modsXEnEdicion);
+          return;
+        }
+        cambiar(campo, true);
+      });
+    }
+    controles.append(barra, numero, unidad);
+    etiqueta.append(textos, controles);
+  } else if (mod.control === 'select') {
+    const campo = document.createElement('select');
+    campo.className = 'mod-x-select';
+    campo.setAttribute('aria-label', mod.nombre);
+    for (const opcion of mod.opciones) {
+      campo.appendChild(new Option(opcion.nombre, opcion.valor));
+    }
+    campo.value = modsXEnEdicion[mod.id];
+    campo.addEventListener('change', () => guardarCambio(campo, campo.value));
+    etiqueta.append(textos, campo);
+  } else {
+    // Sigue siendo un checkbox de verdad; el aspecto de interruptor es CSS.
+    const campo = document.createElement('input');
+    campo.type = 'checkbox';
+    campo.className = 'interruptor';
+    campo.checked = modsXEnEdicion[mod.id] === true;
+    campo.addEventListener('change', () => guardarCambio(campo, campo.checked));
+    etiqueta.append(textos, campo);
+  }
+
+  return etiqueta;
 }
 
 campoDensidad.addEventListener('change', async () => {
@@ -1246,8 +1481,10 @@ window.api.alAtajo(ejecutarAtajo);
 
 const avisoSesion = document.getElementById('aviso-sesion');
 
-function mostrarEstadoSesion(sesionIniciada) {
-  avisoSesion.hidden = sesionIniciada;
+function mostrarEstadoSesion(iniciada) {
+  sesionIniciada = iniciada;
+  avisoSesion.hidden = iniciada;
+  refrescarBarraEstado();
 }
 
 document.getElementById('btn-entrar').addEventListener('click', () => {
@@ -1284,10 +1521,12 @@ btnLimpiarSesion.addEventListener('click', async () => {
 window.api.alActualizarColumna(({ columnaId, nuevos }) => {
   console.log(`[ui] columna ${columnaId}: ${nuevos} tweets nuevos`);
   tablero.registrarNuevos(columnaId, nuevos);
+  if (nuevos > 0) programarRecuentoBiblioteca();
 });
 
 window.api.alEstadoColumna(({ columnaId, fase, actualizadaEn }) => {
   tablero.setEstadoColumna(columnaId, { fase, actualizadaEn });
+  refrescarBarraEstado();
 });
 
 window.api.alCambiarEstado(({ sesionIniciada }) => {
@@ -1306,6 +1545,12 @@ async function arrancar() {
     await cargarAjustes();
 
     await recargarColumnas();
+
+    // Los dos visores de la barra: la biblioteca se recuenta cuando entran
+    // tweets, la memoria por reloj porque cambia sola.
+    cargarBiblioteca();
+    cargarSistema();
+    setInterval(cargarSistema, INTERVALO_SISTEMA_MS);
   } catch (error) {
     const mensaje = mensajeLimpio(error);
     actualizarEstado({ cargando: false, error: mensaje });

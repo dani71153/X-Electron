@@ -1,7 +1,7 @@
 // Diagnostico optativo de memoria por proceso de Electron/Chromium.
 // Se activa con --log-memory para no llenar la consola durante el uso normal.
 
-const { app, webContents } = require('electron');
+const { app, BrowserWindow, webContents } = require('electron');
 
 function kbAMb(valor) {
   if (!Number.isFinite(valor)) return 0;
@@ -53,6 +53,27 @@ function tomarMuestraMemoria() {
   return filas;
 }
 
+/**
+ * Version corta de la muestra, para el visor de la barra de estado.
+ *
+ * Usa privateBytes por el mismo motivo que tomarMuestraMemoria: no cuenta dos
+ * veces las paginas compartidas, asi que el numero sube y baja de verdad al
+ * abrir y cerrar cosechadores.
+ *
+ * "ventanas" incluye el tablero, la ventana visible de X si esta abierta y los
+ * cosechadores ocultos: es justo lo que interesa vigilar.
+ */
+function resumenMemoria() {
+  const privadaTotal = app
+    .getAppMetrics()
+    .reduce((total, metrica) => total + kbAMb(metrica.memory?.privateBytes), 0);
+
+  return {
+    ramMb: Math.round(privadaTotal),
+    ventanas: BrowserWindow.getAllWindows().length,
+  };
+}
+
 function iniciarMonitorMemoria(intervaloMs = 15000) {
   tomarMuestraMemoria();
   const temporizador = setInterval(tomarMuestraMemoria, intervaloMs);
@@ -60,4 +81,4 @@ function iniciarMonitorMemoria(intervaloMs = 15000) {
   return () => clearInterval(temporizador);
 }
 
-module.exports = { iniciarMonitorMemoria, tomarMuestraMemoria };
+module.exports = { iniciarMonitorMemoria, tomarMuestraMemoria, resumenMemoria };

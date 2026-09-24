@@ -16,6 +16,7 @@ const { aplicarUserAgentDeChrome } = require('./session');
 let ventanaPrincipal = null;
 let gestorDeCosecha = null;
 let detenerMonitorMemoria = null;
+let temporizadorLimpieza = null;
 let cosechaPausada = false;
 
 // Una sola instancia. Dos copias sobre la misma particion persist:x pelean por
@@ -91,6 +92,12 @@ app.whenReady().then(() => {
   aplicarUserAgentDeChrome();
 
   abrirBaseDeDatos(app.getPath('userData'));
+  const limpiarAutomaticamente = () => {
+    try { require('./db/storage').ejecutarLimpiezaAutomatica(); }
+    catch (error) { console.error('[almacenamiento] limpieza:', error); }
+  };
+  limpiarAutomaticamente();
+  temporizadorLimpieza = setInterval(limpiarAutomaticamente, 60 * 60 * 1000);
   crearColumnasPorDefectoSiHaceFalta();
   cosechaPausada = ajustesDeUsuario().cosechaPausada;
 
@@ -140,6 +147,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  require('./harvest/tendencias').detenerTendenciasLocales();
+  clearInterval(temporizadorLimpieza);
   if (detenerMonitorMemoria) detenerMonitorMemoria();
   if (gestorDeCosecha) gestorDeCosecha.detener();
   cerrarBaseDeDatos();

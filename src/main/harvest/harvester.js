@@ -19,6 +19,7 @@ const { engancharInterceptor } = require('../capture/interceptor');
 const { haySesionIniciada } = require('../session');
 const { extraerTimeline } = require('../parse/timeline');
 const { extraerTendencias } = require('../parse/tendencias');
+const { ajustesAlmacenamiento } = require('../db/storage');
 const { conJitter, esperar } = require('./tiempo');
 const consultas = require('../db/queries');
 
@@ -102,8 +103,7 @@ class Cosechador {
     this.desenganchar = engancharInterceptor(this.ventana.webContents, {
       alRecibirTimeline: (datos) => this.guardarTimeline(datos),
       alFrenar: (datos) => this.alFrenar(datos),
-      // Las tendencias vienen de regalo: la barra lateral de X las pide sola al
-      // cargar la pagina, asi que no hacemos ni una peticion extra por ellas.
+      // La barra lateral de X pide estas tendencias al cargar las columnas.
       alRecibirTendencias: (json) => this.guardarTendencias(json),
       bloquearRecursosPesados: true,
     });
@@ -236,6 +236,7 @@ class Cosechador {
   }
 
   guardarTimeline({ operacion, json }) {
+    if (!ajustesAlmacenamiento().guardarPostsAutomaticamente) return;
     const { tweets, autores } = extraerTimeline(json);
     if (tweets.length === 0) return;
 
@@ -267,18 +268,13 @@ class Cosechador {
     if (this.alGuardar) this.alGuardar(this.columna.id, nuevos);
   }
 
-  /**
-   * Guarda las tendencias que venian en una respuesta cualquiera de X.
-   * No van ligadas a esta columna: son globales, las pinta la columna de
-   * tendencias desde la base de datos.
-   */
   guardarTendencias(json) {
     const tendencias = extraerTendencias(json);
     if (tendencias.length === 0) return;
-
     consultas.guardarTendencias(tendencias);
     console.log(`[cosecha] ${tendencias.length} tendencias capturadas de paso`);
   }
+
 }
 
 /**

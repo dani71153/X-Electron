@@ -6,25 +6,28 @@
 
 :root {
   color-scheme: dark;
-  --lienzo: #0b0e12;
-  --lienzo-elevado: #0f141a;
-  --superficie: #131920;
-  --superficie-elevada: #18202a;
-  --superficie-hover: #1d2732;
-  --borde: #293440;
-  --borde-fuerte: #3a4858;
-  --texto: #e8edf3;
-  --texto-secundario: #b3bfcb;
-  --texto-suave: #8998a8;
+  /* Lienzo casi negro para que las columnas floten por encima. */
+  --lienzo: #080b0f;
+  /* Un escalón por encima de la superficie: cabeceras de columna y hover. */
+  --lienzo-elevado: #141c25;
+  --superficie: #0e141b;
+  --superficie-elevada: #1b2531;
+  --superficie-hover: #202b38;
+  --borde: #212c39;
+  --borde-fuerte: #33414f;
+  --texto: #e9eef4;
+  --texto-secundario: #aab7c5;
+  --texto-suave: #7a8898;
   --acento: #4a9bd4;
-  --acento-fuerte: #71b7e7;
-  --acento-tinta: #10283a;
-  --exito: #64bd9d;
+  --acento-fuerte: #8bcbf2;
+  --acento-tinta: #0f2a3d;
+  --exito: #5fc29b;
   --aviso: #e0b46b;
-  --peligro: #df747c;
-  --peligro-tinta: #351b21;
-  --sombra: 0 18px 55px rgb(2 9 16 / 0.38);
+  --peligro: #e0777f;
+  --peligro-tinta: #331419;
+  --sombra: 0 18px 55px rgb(0 0 0 / 0.45);
   --ancho-columna: 380px;
+  --rail-ancho: 56px;
   --radio-contenedor: 12px;
   --radio-control: 8px;
   --transicion: 180ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -42,21 +45,37 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Rejilla de la ventana: el rail ocupa toda la altura a la izquierda, la barra
+   de estado toda la anchura abajo, y el panel se queda con el resto.
+   Los diálogos, el toast y los botones fijos no entran en la rejilla porque
+   están posicionados o cerrados (display:none). */
 body {
   margin: 0;
   block-size: 100dvb;
   min-block-size: 100dvb;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: var(--rail-ancho) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "rail panel"
+    "estado estado";
   overflow: hidden;
   background:
-    radial-gradient(circle at 12% -20%, rgb(74 155 212 / 0.09), transparent 34rem),
+    radial-gradient(circle at 12% -20%, rgb(74 155 212 / 0.07), transparent 34rem),
     var(--lienzo);
   color: var(--texto);
   font-family: var(--fuente);
   font-size: 14px;
   line-height: 1.45;
   text-rendering: optimizeLegibility;
+}
+
+.panel {
+  grid-area: panel;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 button,
@@ -104,90 +123,206 @@ button:disabled {
   transform: translateY(0);
 }
 
+/* Rail de espacios de trabajo */
+
+.rail {
+  grid-area: rail;
+  z-index: 11;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  border-right: 1px solid var(--borde);
+  background: var(--superficie);
+}
+
+.rail-grupo {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* Empuja los dos botones de abajo (crear espacio y opciones) al pie. */
+.rail-pie {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.rail-item {
+  width: var(--rail-ancho);
+  height: 44px;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* Barrita de 3px que marca el espacio activo. Ocupa sitio siempre para que el
+   cuadro no se desplace al cambiar de espacio. */
+.rail-indicador {
+  width: 3px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: 0 2px 2px 0;
+  background: transparent;
+  transition: background-color var(--transicion);
+}
+
+.rail-item--activo .rail-indicador {
+  background: var(--acento);
+}
+
+.rail-cuadro {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  margin-inline: auto;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie-elevada);
+  color: var(--texto-suave);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition:
+    color var(--transicion),
+    background-color var(--transicion),
+    border-color var(--transicion);
+}
+
+.rail-item:hover .rail-cuadro {
+  border-color: var(--borde-fuerte);
+  background: var(--superficie-hover);
+  color: var(--texto);
+}
+
+.rail-item--activo .rail-cuadro {
+  border-color: var(--acento);
+  background: var(--acento-tinta);
+  color: var(--acento-fuerte);
+}
+
+.rail-item:focus-visible {
+  outline: 2px solid var(--acento-fuerte);
+  outline-offset: -3px;
+}
+
+/* Barra de estado inferior */
+
+.barra-estado {
+  grid-area: estado;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 14px;
+  border-top: 1px solid var(--borde);
+  background: var(--superficie);
+  color: var(--texto-suave);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.estado-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.estado-item .icono {
+  flex: 0 0 auto;
+  opacity: 0.85;
+}
+
+.estado-item--sesion {
+  color: var(--texto-secundario);
+}
+
+/* El punto ya trae su propio margen derecho desde .punto. */
+.estado-item--sesion .punto {
+  margin-right: 1px;
+}
+
+.estado-hueco {
+  flex: 1 1 auto;
+}
+
 /* Barra superior */
 
 .barra {
   position: relative;
   z-index: 10;
-  min-height: 70px;
+  min-height: 58px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 28px;
+  gap: 20px;
   flex: 0 0 auto;
-  padding: 10px 14px 10px 18px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--borde);
-  background: rgb(15 20 26 / 0.94);
-  box-shadow: 0 8px 30px rgb(2 9 16 / 0.18);
+  background: var(--superficie);
 }
 
 .marca {
-  min-width: max-content;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 10px;
 }
 
 .marca-simbolo {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
-  border: 1px solid var(--borde-fuerte);
-  border-radius: 10px;
+  flex: 0 0 auto;
+  border-radius: 9px;
   background: var(--texto);
   color: var(--lienzo);
   font-family: var(--fuente-display);
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.08em;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.34);
 }
 
 .marca-texto {
+  min-width: 0;
   display: grid;
   gap: 1px;
 }
 
+/* "ESPACIO" encima del nombre del espacio activo. */
+.marca-etiqueta {
+  color: var(--texto-suave);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
 .marca h1 {
   margin: 0;
+  overflow: hidden;
   font-family: var(--fuente-display);
   font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1.15;
-}
-
-.marca-texto > span {
-  color: var(--texto-suave);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.selector-espacio-wrap {
-  min-width: 130px;
-  max-width: 210px;
-  display: grid;
-  gap: 2px;
-  margin: 0 auto 0 10px;
-  color: var(--texto-suave);
-  font-family: var(--fuente-mono);
-  font-size: 8.5px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.selector-espacio-wrap select {
-  width: 100%;
-  min-height: 30px;
-  padding: 4px 24px 4px 8px;
-  border: 1px solid var(--borde);
-  border-radius: 6px;
-  background: var(--superficie);
-  color: var(--texto-secundario);
-  font-family: var(--fuente);
-  font-size: 11.5px;
-  text-transform: none;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .barra-acciones {
@@ -200,7 +335,7 @@ button:disabled {
 }
 
 .boton {
-  min-height: 36px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -232,10 +367,9 @@ button:disabled {
 }
 
 .boton--primario {
-  border-color: #61a8d8;
+  border-color: var(--acento);
   background: var(--acento);
-  color: #081119;
-  box-shadow: 0 8px 24px rgb(16 52 76 / 0.32);
+  color: #08131c;
 }
 
 .boton--primario:hover {
@@ -245,7 +379,7 @@ button:disabled {
 
 .boton--secundario {
   border-color: var(--borde);
-  background: var(--superficie);
+  background: var(--superficie-elevada);
   color: var(--texto-secundario);
 }
 
@@ -566,6 +700,8 @@ button:disabled {
 
 .tablero::-webkit-scrollbar,
 .columna-lista::-webkit-scrollbar,
+.opciones-paneles::-webkit-scrollbar,
+.opciones-nav::-webkit-scrollbar,
 #lista-botones::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -573,6 +709,8 @@ button:disabled {
 
 .tablero::-webkit-scrollbar-thumb,
 .columna-lista::-webkit-scrollbar-thumb,
+.opciones-paneles::-webkit-scrollbar-thumb,
+.opciones-nav::-webkit-scrollbar-thumb,
 #lista-botones::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 8px;
@@ -683,7 +821,6 @@ button:disabled {
   border: 1px solid var(--borde);
   border-radius: var(--radio-contenedor);
   background: var(--superficie);
-  box-shadow: 0 12px 34px rgb(2 9 16 / 0.2), inset 0 1px 0 rgb(255 255 255 / 0.025);
   transition:
     border-color var(--transicion),
     opacity var(--transicion),
@@ -801,9 +938,9 @@ body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabec
 }
 
 .columna-cabecera {
-  min-height: 73px;
+  min-height: 62px;
   flex: 0 0 auto;
-  padding: 12px 12px 10px;
+  padding: 9px 10px 8px;
   border-bottom: 1px solid var(--borde);
   background: var(--lienzo-elevado);
   cursor: grab;
@@ -813,7 +950,7 @@ body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabec
 .columna-cabecera-fila {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 4px;
 }
 
 .columna-asa {
@@ -829,34 +966,48 @@ body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabec
 .columna-cabecera h2 {
   min-width: 0;
   flex: 1;
-  margin: 0;
+  margin: 0 3px 0 0;
   overflow: hidden;
   color: var(--texto);
   font-family: var(--fuente-display);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 680;
-  letter-spacing: -0.015em;
+  letter-spacing: -0.01em;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* El tipo de columna es una pastilla, no texto suelto: así se lee de un golpe
+   y no se confunde con el título. */
 .columna-tipo {
-  max-width: 85px;
+  max-width: 90px;
+  flex: 0 0 auto;
   overflow: hidden;
+  padding: 2px 7px;
+  border: 1px solid var(--borde);
+  border-radius: 99px;
+  background: var(--superficie-elevada);
   color: var(--texto-suave);
-  font-family: var(--fuente-mono);
-  font-size: 9.5px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  line-height: 1.5;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
+/* Las columnas en vivo llevan la pastilla en rojo, como en el diseño. */
+.columna--vivo .columna-tipo {
+  border-color: var(--peligro);
+  background: var(--peligro-tinta);
+  color: var(--peligro);
+}
+
 .columna-icono {
-  width: 28px;
-  height: 28px;
+  width: 25px;
+  height: 25px;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
@@ -866,7 +1017,7 @@ body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabec
   background: transparent;
   color: var(--texto-suave);
   font-family: var(--fuente);
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
   transition:
@@ -973,6 +1124,11 @@ body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabec
   box-shadow: 0 0 0 3px rgb(100 189 157 / 0.09);
 }
 
+.punto--aviso {
+  background: var(--aviso);
+  box-shadow: 0 0 0 3px rgb(224 180 107 / 0.1);
+}
+
 .punto--cosechando {
   background: var(--acento);
   animation: pulso-estado 1.25s ease-in-out infinite;
@@ -1019,13 +1175,14 @@ body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabec
 }
 
 .marcador-lectura {
-  padding: 7px 12px;
-  border-block: 1px solid #345c78;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--acento);
   background: var(--acento-tinta);
   color: var(--acento-fuerte);
-  font-family: var(--fuente-mono);
-  font-size: 9.5px;
-  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
 }
 
 .separador-local {
@@ -1174,8 +1331,8 @@ body[data-cabeceras="plegadas"] .columna:not(.columna--colapsada) .columna-cabec
 }
 
 body[data-densidad="compacta"] .columna-cabecera {
-  min-height: 61px;
-  padding-block: 9px 8px;
+  min-height: 54px;
+  padding-block: 7px 6px;
 }
 
 body[data-densidad="compacta"] .tweet {
@@ -1194,8 +1351,7 @@ body[data-densidad="compacta"] .tweet-texto {
   line-height: 1.42;
 }
 
-body[data-densidad="compacta"] .tweet-metricas,
-body[data-densidad="compacta"] .tweet-acciones {
+body[data-densidad="compacta"] .tweet-metricas {
   margin-top: 7px;
 }
 
@@ -1234,17 +1390,30 @@ body[data-densidad="compacta"] .tweet-acciones {
   object-fit: cover;
 }
 
+/* Rejilla de dos columnas para poder subir las acciones a la primera fila, al
+   lado del nombre, sin tocar el orden del DOM que genera Tweet.js. */
 .tweet-cuerpo {
   min-width: 0;
   flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
 }
 
 .tweet-cabecera {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   display: flex;
   align-items: baseline;
   gap: 5px;
   font-size: 12.5px;
+}
+
+.tweet-texto,
+.tweet-media,
+.tweet-metricas {
+  grid-column: 1 / -1;
 }
 
 .tweet-cabecera strong {
@@ -1328,32 +1497,51 @@ body[data-densidad="compacta"] .tweet-acciones {
 .tweet-metricas {
   display: flex;
   align-items: center;
-  gap: 13px;
-  margin-top: 11px;
+  gap: 16px;
+  margin-top: 10px;
   color: var(--texto-suave);
-  font-family: var(--fuente-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
 .tweet-metrica {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   white-space: nowrap;
 }
 
+.tweet-metrica .icono {
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
+/* Las acciones viven en la esquina superior derecha del tweet. Se mantienen
+   apagadas hasta que pasas el ratón por encima para que la lista respire, pero
+   nunca se ocultan del todo: siguen siendo alcanzables con el teclado y la
+   estrella activa se ve siempre. */
 .tweet-acciones {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
-  gap: 5px;
-  margin-top: 10px;
+  gap: 2px;
+  margin: -2px -2px 0 4px;
+}
+
+.tweet:hover .tweet-accion,
+.tweet:focus-within .tweet-accion {
+  opacity: 1;
 }
 
 .tweet-accion {
-  min-width: 30px;
-  min-height: 28px;
+  opacity: 0.4;
+  min-width: 24px;
+  min-height: 24px;
   display: inline-grid;
   place-items: center;
-  padding: 3px 8px;
-  border: 1px solid var(--borde);
-  border-radius: 7px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   background: transparent;
   color: var(--texto-suave);
   font-family: var(--fuente-mono);
@@ -1364,11 +1552,12 @@ body[data-densidad="compacta"] .tweet-acciones {
     color var(--transicion),
     background-color var(--transicion),
     border-color var(--transicion),
+    opacity var(--transicion),
     transform var(--transicion);
 }
 
 .tweet-accion:hover {
-  border-color: var(--borde-fuerte);
+  border-color: var(--borde);
   background: var(--superficie-hover);
   color: var(--texto);
 }
@@ -1377,10 +1566,10 @@ body[data-densidad="compacta"] .tweet-acciones {
   transform: scale(0.94);
 }
 
+/* Una estrella marcada se ve siempre, aunque el resto estén apagadas. */
 .tweet-accion.activa {
-  border-color: #67552d;
-  background: #2b2518;
   color: var(--aviso);
+  opacity: 1;
 }
 
 /* Diálogos y formularios */
@@ -1409,15 +1598,246 @@ dialog[open] {
 }
 
 dialog::backdrop {
-  background: rgb(4 8 13 / 0.72);
+  background: rgb(5 10 15 / 0.85);
 }
 
 dialog form {
   padding: 22px;
 }
 
-#dialogo-opciones {
-  width: min(520px, calc(100vw - 28px));
+/* Ventana de opciones: cabecera y pie fijos, y el cuerpo se reparte entre la
+   navegación lateral y el panel visible, que es el único que hace scroll. */
+.dialogo-opciones {
+  width: min(960px, calc(100vw - 28px));
+  height: min(750px, calc(100dvh - 40px));
+  overflow: hidden;
+}
+
+.dialogo-opciones form {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.opciones-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  flex: 0 0 auto;
+  padding: 14px 18px 14px 22px;
+  border-bottom: 1px solid var(--borde);
+  background: var(--lienzo-elevado);
+}
+
+.opciones-marca {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  background: var(--superficie-elevada);
+  color: var(--texto-secundario);
+}
+
+.opciones-cabecera-textos {
+  min-width: 0;
+  flex: 1;
+}
+
+.opciones-cabecera h2 {
+  margin: 0;
+  font-family: var(--fuente-display);
+  font-size: 16px;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.opciones-cabecera p {
+  margin: 2px 0 0;
+  color: var(--texto-suave);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.opciones-cerrar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--texto-suave);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--transicion),
+    background-color var(--transicion),
+    border-color var(--transicion);
+}
+
+.opciones-cerrar:hover {
+  border-color: var(--borde);
+  background: var(--superficie-hover);
+  color: var(--texto);
+}
+
+.opciones-cuerpo {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+}
+
+.opciones-nav {
+  width: 222px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 12px;
+  overflow-y: auto;
+  border-right: 1px solid var(--borde);
+  background: var(--lienzo-elevado);
+  scrollbar-width: thin;
+}
+
+.opciones-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 9px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radio-control);
+  background: transparent;
+  color: var(--texto-secundario);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color var(--transicion),
+    background-color var(--transicion),
+    border-color var(--transicion);
+}
+
+.opciones-nav-item .icono {
+  flex: 0 0 auto;
+  color: var(--texto-suave);
+}
+
+.opciones-nav-item:hover {
+  border-color: var(--borde);
+  background: var(--superficie-hover);
+}
+
+.opciones-nav-item--activo {
+  border-color: var(--acento);
+  background: var(--acento-tinta);
+}
+
+.opciones-nav-item--activo .icono {
+  color: var(--acento-fuerte);
+}
+
+.opciones-nav-textos {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.opciones-nav-nombre {
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opciones-nav-item--activo .opciones-nav-nombre {
+  color: var(--texto);
+  font-weight: 650;
+}
+
+.opciones-nav-pista {
+  color: var(--texto-suave);
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.opciones-paneles {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  scrollbar-color: var(--borde-fuerte) transparent;
+  scrollbar-width: thin;
+}
+
+.opciones-panel {
+  padding: 20px 24px 24px;
+}
+
+/* `dialog label` deja 16px de hueco abajo; las tarjetas de checkbox traen
+   margin:0 y se pegarían entre sí, así que aquí se les devuelve la separación. */
+.opciones-panel > .checkbox--panel {
+  margin-bottom: 8px;
+}
+
+.opciones-panel > label:last-child {
+  margin-bottom: 0;
+}
+
+.opciones-panel-cabecera {
+  margin-bottom: 16px;
+}
+
+.opciones-panel-cabecera h3 {
+  margin: 0;
+  font-family: var(--fuente-display);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+.opciones-panel-cabecera p {
+  max-width: 68ch;
+  margin: 5px 0 0;
+  color: var(--texto-suave);
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.opciones-panel-cabecera--accion {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.opciones-pie {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex: 0 0 auto;
+  padding: 12px 18px 12px 22px;
+  border-top: 1px solid var(--borde);
+  background: var(--lienzo-elevado);
+}
+
+.opciones-nota {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--texto-suave);
+  font-size: 11.5px;
 }
 
 #dialogo-espacio {
@@ -1614,50 +2034,147 @@ label.checkbox small {
   background: var(--lienzo-elevado);
 }
 
-.opciones-seccion--mods {
-  margin-top: 0;
-}
-
 .lista-mods-x {
   display: grid;
   gap: 8px;
 }
 
-.mod-x {
-  padding: 12px;
+/* Encabezado de cada tipo de mod: etiqueta corta y una línea que llega al
+   borde, para separar grupos sin meter otra caja dentro de la caja. */
+.mods-grupo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 -1px;
+  color: var(--texto-suave);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
-.mod-x--select {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(170px, auto);
+.mods-grupo:first-child {
+  margin-top: 0;
+}
+
+.mods-grupo::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--borde);
+}
+
+.mods-grupo--aviso {
+  color: var(--aviso);
+}
+
+.mod-x {
+  display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
+  margin: 0;
+  padding: 12px 14px;
   border: 1px solid var(--borde);
   border-radius: 10px;
   background: var(--lienzo-elevado);
+  cursor: pointer;
+}
+
+.mod-x-margen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+.mod-x-margen input[type="range"] {
+  width: 130px;
+  min-width: 0;
+  accent-color: var(--acento, #1d9bf0);
+}
+
+.mod-x-margen input[type="number"] {
+  width: 80px;
 }
 
 .mod-x-textos {
+  min-width: 0;
+  flex: 1;
   display: grid;
-  gap: 4px;
+  gap: 3px;
+}
+
+.mod-x-nombre {
+  color: var(--texto);
+  font-size: 12.5px;
+  font-weight: 650;
 }
 
 .mod-x-textos small {
+  margin: 0;
   color: var(--texto-suave);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
-.mod-x--select select {
+.mod-x .mod-x-select {
+  width: 216px;
+  min-height: 32px;
+  flex: 0 0 auto;
   margin: 0;
+  padding: 5px 9px;
+  background: var(--superficie-elevada);
+  font-size: 12px;
+}
+
+/* Interruptor: por debajo sigue siendo un <input type="checkbox">, así que
+   conserva el foco, el teclado y el estado para lectores de pantalla. */
+.interruptor {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  flex: 0 0 auto;
+  margin: 0;
+  appearance: none;
+  border: 1px solid var(--borde-fuerte);
+  border-radius: 11px;
+  background: var(--superficie-elevada);
+  cursor: pointer;
+  transition:
+    background-color var(--transicion),
+    border-color var(--transicion);
+}
+
+.interruptor::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--texto-suave);
+  transition:
+    transform var(--transicion),
+    background-color var(--transicion);
+}
+
+.interruptor:checked {
+  border-color: var(--acento);
+  background: var(--acento);
+}
+
+.interruptor:checked::after {
+  background: #08131c;
+  transform: translateX(16px);
 }
 
 .opciones-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
-  margin-top: 10px;
 }
 
 .opciones-grid label {
@@ -1666,43 +2183,6 @@ label.checkbox small {
   border: 1px solid var(--borde);
   border-radius: 10px;
   background: var(--lienzo-elevado);
-}
-
-.opciones-seccion {
-  margin-top: 10px;
-  padding: 15px;
-  border: 1px solid var(--borde);
-  border-radius: 10px;
-  background: var(--lienzo-elevado);
-}
-
-.opciones-seccion > header {
-  margin-bottom: 12px;
-}
-
-.opciones-seccion h3 {
-  margin: 0;
-  color: var(--texto);
-  font-size: 12.5px;
-  font-weight: 650;
-}
-
-.opciones-seccion p {
-  margin: 4px 0 0;
-  color: var(--texto-suave);
-  font-size: 10.5px;
-  line-height: 1.4;
-}
-
-.opciones-seccion label:last-child {
-  margin-bottom: 0;
-}
-
-.opciones-seccion-cabecera {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .lista-espacios {
@@ -1954,32 +2434,6 @@ label.checkbox small {
   font: 9.5px var(--fuente-mono);
 }
 
-.atajos-panel {
-  margin-top: 10px;
-  padding: 15px;
-  border: 1px solid var(--borde);
-  border-radius: 10px;
-  background: var(--lienzo-elevado);
-}
-
-.atajos-panel header {
-  margin-bottom: 12px;
-}
-
-.atajos-panel h3 {
-  margin: 0;
-  color: var(--texto);
-  font-size: 12.5px;
-  font-weight: 650;
-}
-
-.atajos-panel p {
-  margin: 4px 0 0;
-  color: var(--texto-suave);
-  font-size: 10.5px;
-  line-height: 1.4;
-}
-
 .atajos-lista {
   display: grid;
   gap: 7px;
@@ -1991,6 +2445,10 @@ label.checkbox small {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 9px 12px;
+  border: 1px solid var(--borde);
+  border-radius: 9px;
+  background: var(--lienzo-elevado);
 }
 
 .atajos-lista dt {
@@ -2036,23 +2494,69 @@ label.checkbox small {
   .barra-acciones {
     justify-content: flex-start;
   }
+}
 
-  .selector-espacio-wrap {
-    max-width: 150px;
-    margin-left: 0;
+/* La barra de estado se vacía por prioridad: primero los contadores de fondo
+   (biblioteca y memoria) y después la hora de la última captura. */
+@media (max-width: 1180px) {
+  .estado-item--extra {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .estado-item--opcional {
+    display: none;
+  }
+}
+
+/* La ventana de opciones no cabe con la navegación al lado: pasa a una fila
+   de pestañas arriba y el panel se queda con todo el ancho. */
+@media (max-width: 880px) {
+  .opciones-cuerpo {
+    flex-direction: column;
+  }
+
+  .opciones-nav {
+    width: auto;
+    flex-direction: row;
+    padding: 10px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--borde);
+  }
+
+  .opciones-nav-item {
+    flex: 0 0 auto;
+  }
+
+  .opciones-nav-pista {
+    display: none;
   }
 }
 
 @media (max-width: 720px) {
+  /* El rail se estrecha antes que desaparecer: seguir cambiando de espacio con
+     un clic importa más que esos 12px de tablero. */
+  :root {
+    --rail-ancho: 44px;
+  }
+
+  .rail-cuadro {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+
   .barra {
-    min-height: 62px;
+    min-height: 54px;
     align-items: center;
     flex-direction: row;
     gap: 12px;
-    padding: 10px 12px;
+    padding: 8px 12px;
   }
 
-  .marca-texto > span {
+  .marca-etiqueta {
     display: none;
   }
 
@@ -2061,23 +2565,14 @@ label.checkbox small {
     margin-left: auto;
   }
 
-  .selector-espacio-wrap {
-    min-width: 92px;
-    max-width: 110px;
-  }
-
-  .selector-espacio-wrap > span {
-    display: none;
-  }
-
   .tablero {
     padding: 8px;
   }
 
   .columna:not(.columna--colapsada),
   .columna--vivo:not(.columna--colapsada) {
-    flex-basis: calc(100vw - 16px);
-    min-width: calc(100vw - 16px);
+    flex-basis: calc(100vw - var(--rail-ancho) - 16px);
+    min-width: calc(100vw - var(--rail-ancho) - 16px);
   }
 
   .estado-tablero {
@@ -2109,16 +2604,19 @@ label.checkbox small {
     display: none;
   }
 
-  .selector-espacio-wrap {
-    display: none;
-  }
-
   .opciones-grid {
     grid-template-columns: 1fr;
   }
 
-  .mod-x--select {
-    grid-template-columns: 1fr;
+  /* Sin sitio para el control al lado del texto: pasa debajo. */
+  .mod-x {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .mod-x .mod-x-select {
+    width: 100%;
   }
 
   .editor-espacio-existentes,

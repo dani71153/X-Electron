@@ -2,12 +2,15 @@
 // El renderer nunca toca la base de datos ni Electron directamente: pasa por aqui.
 
 const fs = require('fs');
+const almacenamiento = require('./db/storage');
 const { ipcMain, dialog } = require('electron');
 const { CANALES } = require('../shared/channels');
 const { normalizarModsX } = require('../shared/x-mods');
 const { AJUSTES } = require('../../config/settings');
 const consultas = require('./db/queries');
+const { resumenMemoria } = require('./diagnostics/memory');
 const { abrirVentanaX, configurarModsVentanaX } = require('./window');
+const { abrirBusquedaModal } = require('./trends-modal');
 const { haySesionIniciada, limpiarSesionX } = require('./session');
 const { normalizarFuente } = require('./harvest/fuente');
 const { urlDeColumna } = require('./harvest/harvester');
@@ -143,6 +146,7 @@ function ajustesDeUsuario() {
 
   return {
     modsX,
+    ...almacenamiento.ajustesAlmacenamiento(),
     mostrarBarraHerramientas:
       guardados.mostrarBarraHerramientas === undefined
         ? porDefecto.mostrarBarraHerramientas
@@ -172,7 +176,10 @@ function ajustesDeUsuario() {
 function guardarAjustesReconocidos(ajustes) {
   if (!ajustes || typeof ajustes !== 'object') return ajustesDeUsuario();
 
-  const booleanos = ['mostrarBarraHerramientas', 'cabecerasPlegadas', 'cosechaPausada'];
+  const booleanos = ['mostrarBarraHerramientas', 'cabecerasPlegadas', 'cosechaPausada', 'guardarPostsAutomaticamente'];
+  if ([0, 7, 30, 90].includes(ajustes.limpiezaAutomaticaDias)) {
+    consultas.guardarAjuste('limpiezaAutomaticaDias', String(ajustes.limpiezaAutomaticaDias));
+  }
   for (const clave of booleanos) {
     if (typeof ajustes[clave] === 'boolean') {
       consultas.guardarAjuste(clave, ajustes[clave] ? '1' : '0');
@@ -434,12 +441,49 @@ function registrarIpc(alCambiarColumnas, alPausarCosecha = async () => {}) {
     };
   });
 
+  // Cuanto hay guardado. El renderer lo pide al arrancar y luego solo cuando
+  // llegan tweets nuevos, con antirrebote.
+  ipcMain.handle(CANALES.ESTADISTICAS_BIBLIOTECA, () => {
+    return consultas.contarBiblioteca();
+  });
+
+  // Memoria y ventanas vivas. Cambia solo, asi que el renderer lo consulta con
+  // un temporizador.
+  ipcMain.handle(CANALES.ESTADISTICAS_SISTEMA, () => {
+    return resumenMemoria();
+  });
+
   // Tendencias vigentes. Aprovechamos para tirar las que ya caducaron: la tabla
   // se queda pequena sin necesitar un temporizador de limpieza aparte.
-  ipcMain.handle(CANALES.TENDENCIAS_LISTAR, () => {
+  ipcMain.handle(CANALES.TENDENCIAS_LISTAR, (_evento, fuenteSolicitada, conEstado = false) => {
+    const fuente = fuenteSolicitada === 'explorar' || fuenteSolicitada === 'columnas'
+      ? fuenteSolicitada : ajustesDeUsuario().modsX.fuenteTendencias;
+    if (fuente === 'explorar') require('./harvest/tendencias').actualizarTendenciasLocales();
     consultas.limpiarTendencias();
-    return consultas.listarTendencias();
+    const tendencias = consultas.listarTendencias(undefined, undefined, fuente);
+    if (conEstado === true) return {
+      tendencias,
+      captura: fuente === 'explorar' ? require('./harvest/tendencias').estadoTendenciasLocales() : null,
+    };
+    return tendencias;
   });
+  ipcMain.handle(CANALES.ALMACENAMIENTO_RESUMEN, () => almacenamiento.resumenAlmacenamiento());
+  ipcMain.handle(CANALES.ALMACENAMIENTO_LIMPIAR, async (evento, dias) => {
+    if (!evento.sender.getURL().startsWith('file:') || ![0, 7, 30, 90].includes(dias)) {
+      throw new Error('Solicitud de limpieza no valida');
+    }
+    const { BrowserWindow } = require('electron');
+    const padre = BrowserWindow.fromWebContents(evento.sender);
+    const respuesta = await dialog.showMessageBox(padre, {
+      type: 'question', buttons: ['Cancelar', 'Limpiar publicaciones'], defaultId: 0, cancelId: 0,
+      title: 'Limpiar almacenamiento',
+      message: dias ? `Eliminar posts capturados hace mas de ${dias} dias?` : 'Eliminar todos los posts no guardados?',
+      detail: 'Tus posts guardados, sesion, columnas y ajustes se conservan. Esta limpieza no se puede deshacer.',
+    });
+    if (respuesta.response !== 1) return { cancelado: true };
+    return almacenamiento.limpiarPublicaciones(dias);
+  });
+  ipcMain.handle(CANALES.TENDENCIAS_ABRIR_MODAL, abrirBusquedaModal);
 
   ipcMain.handle(CANALES.LISTAS_LISTAR, () => {
     return consultas.listarListas();

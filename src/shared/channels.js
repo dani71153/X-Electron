@@ -12,6 +12,9 @@ const CANALES = {
   TWEET_GUARDAR: 'tweets:guardar',
   TWEET_EXPORTAR: 'tweets:exportar',
   TENDENCIAS_LISTAR: 'tendencias:listar',
+  ALMACENAMIENTO_RESUMEN: 'almacenamiento:resumen',
+  ALMACENAMIENTO_LIMPIAR: 'almacenamiento:limpiar',
+  TENDENCIAS_ABRIR_MODAL: 'tendencias:abrirModal',
   LISTAS_LISTAR: 'listas:listar',
   LISTAS_REFRESCAR: 'listas:refrescar',
   X_ABRIR_LOGIN: 'x:abrirLogin',
@@ -22,6 +25,10 @@ const CANALES = {
   COSECHA_PAUSAR: 'cosecha:pausar',
   CONFIG_EXPORTAR: 'config:exportar',
   CONFIG_IMPORTAR: 'config:importar',
+  // Dos canales y no uno: contar la base es un escaneo completo y solo cambia
+  // cuando entran tweets; la memoria cambia sola y se consulta por reloj.
+  ESTADISTICAS_BIBLIOTECA: 'app:estadisticasBiblioteca',
+  ESTADISTICAS_SISTEMA: 'app:estadisticasSistema',
 
   // Del tablero/main HACIA una vista visible de X.
   // Lo escucha src/preload/x-inject.js; los cosechadores no reciben este canal.

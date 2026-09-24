@@ -14,21 +14,18 @@
   <body>
     <a class="saltar-contenido" href="#tablero">Saltar al tablero</a>
 
-    <header id="barra-herramientas" class="barra">
-      <div class="marca" aria-label="X-Electron">
-        <span class="marca-simbolo" aria-hidden="true">X</span>
-        <span class="marca-texto">
-          <h1>X-Electron</h1>
-          <span>Panel de lectura</span>
-        </span>
-      </div>
+    <!-- Rail de espacios de trabajo. Lo rellena Rail.js desde pintarEspacios(). -->
+    <nav id="rail-espacios" class="rail" aria-label="Espacios de trabajo"></nav>
 
-      <label class="selector-espacio-wrap">
-        <span>Espacio</span>
-        <select id="selector-espacio" aria-label="Espacio de trabajo activo">
-          <option value="">Todas las columnas</option>
-        </select>
-      </label>
+    <div class="panel">
+      <header id="barra-herramientas" class="barra">
+        <div class="marca" aria-label="X-Electron">
+          <span class="marca-simbolo" aria-hidden="true">X</span>
+          <span class="marca-texto">
+            <span class="marca-etiqueta">Espacio</span>
+            <h1 id="titulo-espacio">Todas las columnas</h1>
+          </span>
+        </div>
 
       <nav class="barra-acciones" aria-label="Acciones del tablero">
         <button
@@ -145,10 +142,10 @@
           </div>
         </details>
       </nav>
-    </header>
+      </header>
 
-    <button
-      id="btn-mostrar-barra"
+      <button
+        id="btn-mostrar-barra"
       class="mostrar-barra"
       type="button"
       aria-label="Mostrar barra de herramientas"
@@ -184,7 +181,11 @@
           </button>
         </div>
       </section>
-    </main>
+      </main>
+    </div>
+
+    <!-- Barra de estado. La rellena BarraEstado.js. -->
+    <footer id="barra-estado" class="barra-estado" aria-label="Estado de la aplicación"></footer>
 
     <aside id="toast" class="toast" role="status" aria-live="polite" hidden>
       <span id="toast-texto"></span>
@@ -264,99 +265,201 @@
       </form>
     </dialog>
 
-    <dialog id="dialogo-opciones" aria-labelledby="titulo-dialogo-opciones">
+    <!--
+      Ventana de opciones: cabecera fija, navegación lateral por secciones y un
+      panel visible cada vez. Antes era un formulario único de scroll largo.
+      Los ids se conservan: main.js sigue apuntando a los mismos campos.
+    -->
+    <dialog id="dialogo-opciones" class="dialogo-opciones" aria-labelledby="titulo-dialogo-opciones">
       <form id="form-opciones" method="dialog">
-        <header class="dialogo-cabecera">
-          <span class="dialogo-marca" aria-hidden="true">O</span>
-          <div>
+        <header class="opciones-cabecera">
+          <span class="opciones-marca" data-icono="ajustes" aria-hidden="true"></span>
+          <div class="opciones-cabecera-textos">
             <h2 id="titulo-dialogo-opciones">Opciones</h2>
-            <p>Personaliza la interfaz y el comportamiento de las columnas.</p>
+            <p>Los cambios se guardan y se aplican al instante.</p>
           </div>
+          <kbd class="atajo">Ctrl + ,</kbd>
+          <button
+            type="button"
+            id="btn-cerrar-opciones-x"
+            class="opciones-cerrar"
+            aria-label="Cerrar opciones"
+          >
+            &#215;
+          </button>
         </header>
 
-        <section class="opciones-seccion opciones-seccion--mods" aria-labelledby="titulo-mods-x">
-          <header>
-            <h3 id="titulo-mods-x">Mods de X</h3>
-            <p>
-              Mejoras opcionales para las columnas en vivo y la ventana original. No afectan a los cosechadores.
-            </p>
-          </header>
-          <div id="lista-mods-x" class="lista-mods-x"></div>
-        </section>
+        <div class="opciones-cuerpo">
+          <nav id="opciones-nav" class="opciones-nav" aria-label="Secciones de opciones">
+            <button type="button" class="opciones-nav-item" data-panel="panel-almacenamiento">
+              <span class="opciones-nav-textos">
+                <span class="opciones-nav-nombre">Almacenamiento</span>
+                <span class="opciones-nav-pista">Captura y limpieza</span>
+              </span>
+            </button>
+            <button
+              type="button"
+              class="opciones-nav-item"
+              data-panel="panel-apariencia"
+              data-icono="ajustes"
+              aria-current="true"
+            >
+              <span class="opciones-nav-textos">
+                <span class="opciones-nav-nombre">Apariencia</span>
+                <span class="opciones-nav-pista">Densidad y ancho</span>
+              </span>
+            </button>
+            <button type="button" class="opciones-nav-item" data-panel="panel-filtros" data-icono="filtro">
+              <span class="opciones-nav-textos">
+                <span class="opciones-nav-nombre">Filtros locales</span>
+                <span class="opciones-nav-pista">Palabras y usuarios</span>
+              </span>
+            </button>
+            <button type="button" class="opciones-nav-item" data-panel="panel-mods" data-icono="rayo">
+              <span class="opciones-nav-textos">
+                <span class="opciones-nav-nombre">Mods de X</span>
+                <span class="opciones-nav-pista" id="pista-mods">Activables en la X real</span>
+              </span>
+            </button>
+            <button type="button" class="opciones-nav-item" data-panel="panel-espacios" data-icono="rejilla">
+              <span class="opciones-nav-textos">
+                <span class="opciones-nav-nombre">Espacios de trabajo</span>
+                <span class="opciones-nav-pista" id="pista-espacios">Tableros guardados</span>
+              </span>
+            </button>
+            <button type="button" class="opciones-nav-item" data-panel="panel-atajos" data-icono="comando">
+              <span class="opciones-nav-textos">
+                <span class="opciones-nav-nombre">Atajos de teclado</span>
+                <span class="opciones-nav-pista">8 combinaciones</span>
+              </span>
+            </button>
+          </nav>
 
-        <div class="opciones-grid">
-          <label>
-            Densidad
-            <select id="campo-densidad">
-              <option value="comoda">Cómoda</option>
-              <option value="compacta">Compacta</option>
-            </select>
-          </label>
-          <label>
-            Ancho predeterminado
-            <select id="campo-ancho-columna">
-              <option value="320">Estrecho · 320 px</option>
-              <option value="380">Normal · 380 px</option>
-              <option value="460">Amplio · 460 px</option>
-              <option value="540">Muy amplio · 540 px</option>
-            </select>
-          </label>
+          <div class="opciones-paneles">
+            <section id="panel-almacenamiento" class="opciones-panel" aria-label="Almacenamiento" hidden>
+              <header class="opciones-panel-cabecera">
+                <h3>Almacenamiento</h3>
+                <p id="resumen-almacenamiento" role="status">Cargando almacenamiento...</p>
+              </header>
+              <label class="checkbox checkbox--panel">
+                <input id="campo-guardar-posts" type="checkbox" />
+                <span>Guardar posts automáticamente</span>
+              </label>
+              <p>Al desactivarlo, las columnas de datos dejan de guardar posts nuevos. X en vivo sigue funcionando. Los datos existentes se conservan.</p>
+              <label>Limpieza automática
+                <select id="campo-limpieza-automatica">
+                  <option value="0">Desactivada</option>
+                  <option value="7">Conservar los últimos 7 días</option>
+                  <option value="30">Conservar los últimos 30 días</option>
+                  <option value="90">Conservar los últimos 90 días</option>
+                </select>
+              </label>
+              <p>Se revisa al iniciar y cada hora, según la fecha de captura. Tus posts guardados nunca se eliminan.</p>
+              <label>Limpiar publicaciones
+                <select id="campo-plazo-limpieza">
+                  <option value="7">Capturadas hace más de 7 días</option>
+                  <option value="30" selected>Capturadas hace más de 30 días</option>
+                  <option value="90">Capturadas hace más de 90 días</option>
+                  <option value="0">Todas excepto mis guardados</option>
+                </select>
+              </label>
+              <p>También libera el espacio de la base de datos. Si la captura sigue activa, los posts pueden volver a guardarse cuando X los muestre.</p>
+              <button type="button" id="btn-limpiar-publicaciones" class="boton">Limpiar publicaciones…</button>
+              <p id="estado-limpieza" role="status"></p>
+            </section>
+            <section id="panel-apariencia" class="opciones-panel" aria-label="Apariencia">
+              <header class="opciones-panel-cabecera">
+                <h3>Apariencia</h3>
+                <p>Cómo se ven el tablero y las columnas en este equipo.</p>
+              </header>
+              <div class="opciones-grid">
+                <label>
+                  Densidad
+                  <select id="campo-densidad">
+                    <option value="comoda">Cómoda</option>
+                    <option value="compacta">Compacta</option>
+                  </select>
+                </label>
+                <label>
+                  Ancho predeterminado
+                  <select id="campo-ancho-columna">
+                    <option value="320">Estrecho · 320 px</option>
+                    <option value="380">Normal · 380 px</option>
+                    <option value="460">Amplio · 460 px</option>
+                    <option value="540">Muy amplio · 540 px</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section id="panel-filtros" class="opciones-panel" aria-label="Filtros locales" hidden>
+              <header class="opciones-panel-cabecera">
+                <h3>Filtros locales</h3>
+                <p>Se aplican después de descargar; no generan peticiones adicionales a X.</p>
+              </header>
+              <label>
+                Palabras silenciadas
+                <textarea id="campo-palabras-silenciadas" rows="2" placeholder="spoilers, promoción, crypto"></textarea>
+              </label>
+              <label>
+                Usuarios silenciados
+                <input id="campo-usuarios-silenciados" type="text" placeholder="usuario1, @usuario2" />
+              </label>
+              <label class="checkbox checkbox--panel">
+                <input id="campo-ocultar-retweets" type="checkbox" />
+                <span>Ocultar retweets</span>
+              </label>
+              <label class="checkbox checkbox--panel">
+                <input id="campo-ocultar-media" type="checkbox" />
+                <span>Ocultar posts con multimedia</span>
+              </label>
+            </section>
+
+            <section id="panel-mods" class="opciones-panel" aria-label="Mods de X" hidden>
+              <header class="opciones-panel-cabecera">
+                <h3>Mods de X</h3>
+                <p>
+                  Se aplican dentro de la página real de X: en las columnas en vivo y en la ventana
+                  original. Los cosechadores quedan fuera para no alterar sus peticiones.
+                </p>
+              </header>
+              <div id="lista-mods-x" class="lista-mods-x"></div>
+            </section>
+
+            <section id="panel-espacios" class="opciones-panel" aria-label="Espacios de trabajo" hidden>
+              <header class="opciones-panel-cabecera opciones-panel-cabecera--accion">
+                <div>
+                  <h3>Espacios de trabajo</h3>
+                  <p>Tableros guardados con sus propias columnas, contenido y orden.</p>
+                </div>
+                <button id="btn-nuevo-espacio-opciones" class="boton boton--compacto" type="button">Nuevo</button>
+              </header>
+              <div id="lista-espacios" class="lista-espacios"></div>
+            </section>
+
+            <section id="panel-atajos" class="opciones-panel" aria-label="Atajos de teclado" hidden>
+              <header class="opciones-panel-cabecera">
+                <h3>Atajos de teclado</h3>
+                <p>También funcionan cuando el foco está dentro de una columna en vivo.</p>
+              </header>
+              <dl class="atajos-lista">
+                <div><dt>Nueva columna</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>N</kbd></dd></div>
+                <div><dt>Refrescar columnas</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>R</kbd></dd></div>
+                <div><dt>Abrir opciones</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>,</kbd></dd></div>
+                <div><dt>Mostrar u ocultar barra</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>B</kbd></dd></div>
+                <div><dt>Plegar cabeceras de columna</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>H</kbd></dd></div>
+                <div><dt>Paleta de comandos</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd></dd></div>
+                <div><dt>Columna anterior/siguiente</dt><dd><kbd>Alt</kbd><span>+</span><kbd>←</kbd><span>/</span><kbd>→</kbd></dd></div>
+                <div><dt>Primera/última columna</dt><dd><kbd>Alt</kbd><span>+</span><kbd>Home</kbd><span>/</span><kbd>End</kbd></dd></div>
+              </dl>
+            </section>
+          </div>
         </div>
 
-        <section class="opciones-seccion" aria-labelledby="titulo-filtros-locales">
-          <header>
-            <h3 id="titulo-filtros-locales">Filtros locales</h3>
-            <p>Se aplican después de descargar; no generan peticiones adicionales a X.</p>
-          </header>
-          <label>
-            Palabras silenciadas
-            <textarea id="campo-palabras-silenciadas" rows="2" placeholder="spoilers, promoción, crypto"></textarea>
-          </label>
-          <label>
-            Usuarios silenciados
-            <input id="campo-usuarios-silenciados" type="text" placeholder="usuario1, @usuario2" />
-          </label>
-          <label class="checkbox">
-            <input id="campo-ocultar-retweets" type="checkbox" />
-            <span>Ocultar retweets</span>
-          </label>
-          <label class="checkbox">
-            <input id="campo-ocultar-media" type="checkbox" />
-            <span>Ocultar posts con multimedia</span>
-          </label>
-        </section>
-
-        <section class="opciones-seccion" aria-labelledby="titulo-espacios">
-          <header class="opciones-seccion-cabecera">
-            <div>
-              <h3 id="titulo-espacios">Espacios de trabajo</h3>
-              <p>Tableros guardados con sus propias columnas, contenido y orden.</p>
-            </div>
-            <button id="btn-nuevo-espacio-opciones" class="boton boton--compacto" type="button">Nuevo</button>
-          </header>
-          <div id="lista-espacios" class="lista-espacios"></div>
-        </section>
-
-        <section class="atajos-panel" aria-labelledby="titulo-atajos">
-          <header>
-            <h3 id="titulo-atajos">Atajos de teclado</h3>
-            <p>También funcionan cuando el foco está dentro de una columna en vivo.</p>
-          </header>
-          <dl class="atajos-lista">
-            <div><dt>Nueva columna</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>N</kbd></dd></div>
-            <div><dt>Refrescar columnas</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>R</kbd></dd></div>
-            <div><dt>Abrir opciones</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>,</kbd></dd></div>
-            <div><dt>Mostrar u ocultar barra</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>B</kbd></dd></div>
-            <div><dt>Plegar cabeceras de columna</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>Shift</kbd><span>+</span><kbd>H</kbd></dd></div>
-            <div><dt>Paleta de comandos</dt><dd><kbd>Ctrl</kbd><span>+</span><kbd>K</kbd></dd></div>
-            <div><dt>Columna anterior/siguiente</dt><dd><kbd>Alt</kbd><span>+</span><kbd>←</kbd><span>/</span><kbd>→</kbd></dd></div>
-            <div><dt>Primera/última columna</dt><dd><kbd>Alt</kbd><span>+</span><kbd>Home</kbd><span>/</span><kbd>End</kbd></dd></div>
-          </dl>
-        </section>
-
-        <div class="dialogo-acciones">
-          <button type="button" id="btn-cerrar-opciones" class="boton boton--primario">Cerrar</button>
-        </div>
+        <footer class="opciones-pie">
+          <span class="opciones-nota" data-icono="info">Todos los ajustes se guardan en este equipo.</span>
+          <button type="button" id="btn-cerrar-opciones" class="boton boton--primario">Hecho</button>
+        </footer>
       </form>
     </dialog>
 

@@ -327,6 +327,26 @@ function contarColumnas() {
   return db.prepare('SELECT COUNT(*) AS n FROM columns').get().n;
 }
 
+// ---------- Estadisticas ----------
+
+/**
+ * Cuanto hay guardado en total, para el visor de la barra de estado.
+ *
+ * Son dos COUNT(*) sin WHERE, o sea dos escaneos completos: baratos ahora y
+ * caros si la base crece mucho. Por eso quien llama no debe pedirlos en cada
+ * tweet que entra (ver el antirrebote en el renderer).
+ *
+ * "autores" son los usuarios que han aparecido en algo capturado. No son
+ * cuentas que sigas ni gente con la que interactues.
+ */
+function contarBiblioteca() {
+  const db = obtenerBaseDeDatos();
+  return {
+    tweets: db.prepare('SELECT COUNT(*) AS n FROM tweets').get().n,
+    autores: db.prepare('SELECT COUNT(*) AS n FROM users').get().n,
+  };
+}
+
 // ---------- Listas ----------
 
 function guardarLista(lista) {
@@ -371,12 +391,13 @@ function listarListas() {
  * Guarda (o actualiza) un lote de tendencias en una sola transaccion.
  * Se llama muy a menudo: X repite las mismas tendencias en cada respuesta.
  */
-function guardarTendencias(tendencias) {
+function guardarTendencias(tendencias, fuente = 'columnas') {
   if (!Array.isArray(tendencias) || tendencias.length === 0) return 0;
 
   const db = obtenerBaseDeDatos();
+  const tabla = fuente === 'explorar' ? 'trends_local' : 'trends';
   const guardar = db.prepare(`
-    INSERT INTO trends (name, query, context, description, post_count, position, updated_at)
+    INSERT INTO ${tabla} (name, query, context, description, post_count, position, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET
       query = excluded.query,
@@ -391,6 +412,7 @@ function guardarTendencias(tendencias) {
 
   db.exec('BEGIN');
   try {
+    if (fuente === 'explorar') db.exec('DELETE FROM trends_local');
     for (const tendencia of tendencias) {
       guardar.run(
         texto(tendencia.nombre),
@@ -416,15 +438,19 @@ function guardarTendencias(tendencias) {
  * Solo las de la ultima cosecha: las que llevan mas de `frescuraMs` sin
  * aparecer ya no son tendencia, aunque sigan en la tabla.
  */
-function listarTendencias(frescuraMs = 6 * 60 * 60 * 1000, limite = 50) {
+function listarTendencias(frescuraMs = 6 * 60 * 60 * 1000, limite = 50, fuente = 'columnas') {
   const db = obtenerBaseDeDatos();
   const desde = Date.now() - Math.max(0, entero(frescuraMs));
   const filas = db.prepare(`
-    SELECT * FROM trends
+    SELECT * FROM ${fuente === 'explorar' ? 'trends_local' : 'trends'}
     WHERE updated_at >= ?
     ORDER BY position ASC, post_count DESC
     LIMIT ?
   `).all(desde, Math.max(1, entero(limite)));
+
+  // Ignorar la captura defectuosa del lector anterior (1, 2, 3... como temas).
+  // La siguiente captura valida sustituye esta cache, sin tocar otras fuentes.
+  if (fuente === 'explorar' && filas.length && filas.every((f) => f.name === String(f.position))) return [];
 
   return filas.map((f) => ({
     nombre: f.name,
@@ -459,6 +485,7 @@ module.exports = {
   reordenarColumnas,
   reemplazarColumnas,
   contarColumnas,
+  contarBiblioteca,
   leerAjustes,
   guardarAjuste,
   guardarLista,

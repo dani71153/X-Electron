@@ -80,3 +80,10 @@ CREATE TABLE IF NOT EXISTS trends (
 );
 
 CREATE INDEX IF NOT EXISTS idx_trends_updated ON trends (updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS trends_local (
+  name TEXT PRIMARY KEY, query TEXT NOT NULL DEFAULT '',
+  context TEXT NOT NULL DEFAULT '', description TEXT NOT NULL DEFAULT '',
+  post_count INTEGER NOT NULL DEFAULT 0, position INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);

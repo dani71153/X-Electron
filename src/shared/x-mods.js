@@ -5,6 +5,79 @@
 
 const CATALOGO_MODS_X = Object.freeze([
   Object.freeze({
+    id: 'fuenteTendencias', nombre: 'Fuente de tendencias',
+    descripcion: 'Conserva una lista separada para cada fuente. Explorar usa tu sesion y las preferencias de ubicacion de X.',
+    tipo: 'Apariencia', control: 'select',
+    opciones: Object.freeze([
+      Object.freeze({ valor: 'columnas', nombre: 'Desde las columnas (actual)' }),
+      Object.freeze({ valor: 'explorar', nombre: 'Explorar > Tendencias' }),
+    ]),
+    predeterminado: 'columnas',
+  }),
+  Object.freeze({
+    id: 'ocultarAnuncios',
+    nombre: 'Ocultar anuncios del feed',
+    descripcion: 'Oculta publicaciones marcadas como Anuncio, Ad o Promoted y colapsa su espacio. No filtra noticias de cuentas normales.',
+    tipo: 'Apariencia',
+    control: 'toggle',
+    predeterminado: true,
+  }),
+  Object.freeze({
+    id: 'abrirTendencias',
+    nombre: 'Abrir tendencias en',
+    descripcion: 'Elige entre navegar en la pagina actual o ver la busqueda en una ventana modal sin perder tu pagina.',
+    tipo: 'Apariencia',
+    control: 'select',
+    opciones: Object.freeze([
+      Object.freeze({ valor: 'pagina', nombre: 'Pagina actual' }),
+      Object.freeze({ valor: 'modal', nombre: 'Modal de busqueda' }),
+    ]),
+    predeterminado: 'pagina',
+  }),
+  Object.freeze({
+    id: 'panelTendencias',
+    nombre: 'Tendencias a la derecha',
+    descripcion: 'Muestra los temas capturados por la app en el espacio libre junto a los posts. Requiere Interfaz limpia y al menos 260 px libres.',
+    tipo: 'Apariencia',
+    control: 'toggle',
+    predeterminado: true,
+  }),
+  Object.freeze({
+    id: 'anchoPosts',
+    nombre: 'Ancho de los posts',
+    descripcion: 'Ancho en pixeles de la columna y sus publicaciones. Se adapta al espacio disponible. Requiere Interfaz limpia.',
+    tipo: 'Apariencia',
+    control: 'range',
+    min: 320,
+    max: 10000,
+    maxBarra: 1600,
+    predeterminado: 600,
+  }),
+  Object.freeze({
+    id: 'direccionAnchoPosts',
+    nombre: 'Direccion del ancho',
+    descripcion: 'Respecto al ancho original de 600 px. Hacia la izquierda utiliza el margen disponible sin cubrir el menu.',
+    tipo: 'Apariencia',
+    control: 'select',
+    opciones: Object.freeze([
+      Object.freeze({ valor: 'simetrico', nombre: 'Simetrico' }),
+      Object.freeze({ valor: 'izquierda', nombre: 'Hacia la izquierda' }),
+      Object.freeze({ valor: 'derecha', nombre: 'Hacia la derecha' }),
+    ]),
+    predeterminado: 'derecha',
+  }),
+  Object.freeze({
+    id: 'margenIzquierdo',
+    nombre: 'Margen izquierdo de X',
+    descripcion: 'Separacion entre el borde y el menu, en pixeles. Requiere Interfaz limpia.',
+    tipo: 'Apariencia',
+    control: 'range',
+    min: 0,
+    max: 10000,
+    maxBarra: 600,
+    predeterminado: 12,
+  }),
+  Object.freeze({
     id: 'interfazLimpia',
     nombre: 'Interfaz limpia',
     descripcion: 'Oculta la columna lateral de tendencias y aprovecha su espacio.',
@@ -86,6 +159,14 @@ function normalizarModsX(valor, fallback = MODS_X_POR_DEFECTO) {
   const resultado = {};
 
   for (const mod of CATALOGO_MODS_X) {
+    if (mod.control === 'range') {
+      const normalizar = (valor, fallback) =>
+        typeof valor === 'number' && Number.isFinite(valor)
+          ? Math.max(mod.min, Math.min(mod.max, Math.round(valor)))
+          : fallback;
+      resultado[mod.id] = normalizar(entrada[mod.id], normalizar(base[mod.id], mod.predeterminado));
+      continue;
+    }
     if (mod.control === 'select') {
       const permitidos = new Set(mod.opciones.map((opcion) => opcion.valor));
       const valorBase = permitidos.has(base[mod.id]) ? base[mod.id] : mod.predeterminado;

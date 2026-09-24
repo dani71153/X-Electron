@@ -3,6 +3,8 @@
 // Nunca usamos innerHTML con texto que venga de X: siempre textContent.
 // Ese texto lo escribe cualquiera en internet.
 
+import { crearIcono } from './Icono.js';
+
 /** 1234 -> "1,2 mil" */
 function formatearNumero(n) {
   if (n < 1000) return String(n);
@@ -49,18 +51,27 @@ function crearMetricas(metricas) {
   fila.className = 'tweet-metricas';
 
   const items = [
-    ['Respuestas', metricas.respuestas],
-    ['RT', metricas.retweets],
-    ['Likes', metricas.likes],
-    ['Vistas', metricas.vistas],
+    ['Respuestas', 'respuesta', metricas.respuestas],
+    ['Retweets', 'retweet', metricas.retweets],
+    ['Likes', 'like', metricas.likes],
+    ['Vistas', 'vistas', metricas.vistas],
   ];
 
-  for (const [etiqueta, valor] of items) {
+  for (const [etiqueta, icono, valor] of items) {
+    const numero = formatearNumero(valor ?? 0);
+
     const span = document.createElement('span');
     span.className = 'tweet-metrica';
     span.title = etiqueta;
-    span.textContent = `${etiqueta[0]} ${formatearNumero(valor ?? 0)}`;
-    span.setAttribute('aria-label', `${etiqueta}: ${formatearNumero(valor ?? 0)}`);
+    span.setAttribute('aria-label', `${etiqueta}: ${numero}`);
+
+    const svg = crearIcono(icono, 13);
+    if (svg) span.appendChild(svg);
+
+    const texto = document.createElement('span');
+    texto.textContent = numero;
+    span.appendChild(texto);
+
     fila.appendChild(span);
   }
 
